@@ -151,7 +151,7 @@ AUTHOR AND COPYRIGHT
     This module is free software. It may be used, redistributed and/or
     modified under the same terms as Perl itself.
 
-    $Id: README.pod,v 0.8 2002/01/16 04:37:56 brendan Exp $
+    $Id: README,v 1.1 2002/02/13 14:01:18 brendan Exp $
 
     ** This file was automatically generated from **
     ** doc/README.pod. To edit it, see there.    **

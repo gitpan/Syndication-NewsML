@@ -1,10 +1,29 @@
-# $Id: NewsML.pm,v 0.8 2002/01/16 04:35:29 brendan Exp $
+# $Id: NewsML.pm,v 0.10 2002/02/13 14:01:18 brendan Exp $
 # Syndication::NewsML.pm
 
-$VERSION     = sprintf("%d.%02d", q$Revision: 0.8 $ =~ /(\d+)\.(\d+)/);
-$VERSION_DATE= sprintf("%s", q$Date: 2002/01/16 04:35:29 $ =~ m# (.*) $# );
+$VERSION     = sprintf("%d.%02d", q$Revision: 0.10 $ =~ /(\d+)\.(\d+)/);
+$VERSION_DATE= sprintf("%s", q$Date: 2002/02/13 14:01:18 $ =~ m# (.*) $# );
 
 $DEBUG = 1;
+
+use NewsML::Node;
+use NewsML::IdNode;
+use NewsML::AssignmentNode;
+use NewsML::CatalogNode;
+use NewsML::CommentNode;
+use NewsML::DataNode;
+use NewsML::DateNode;
+use NewsML::DOMUtils;
+use NewsML::FormalNameNode;
+use NewsML::OriginNode;
+use NewsML::PartyNode;
+use NewsML::PropertyNode;
+use NewsML::References;
+use NewsML::TopicNode;
+use NewsML::TopicSetNode;
+use NewsML::XmlLangNode;
+
+use XML::DOM;
 
 #
 # Syndication::NewsML -- initial parser. Maybe this should be Syndication::NewsML::Parser or something?
@@ -12,8 +31,6 @@ $DEBUG = 1;
 # does it mean that you can't grab extra namespace/DTD declarations etc?
 #
 package Syndication::NewsML;
-use Carp;
-use XML::DOM;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CatalogNode Syndication::NewsML::TopicSetNode );
 
 sub _init {
@@ -37,7 +54,7 @@ Syndication::NewsML -- Parser for NewsML documents
 
 =head1 VERSION
 
-Version $Revision: 0.8 $, released $Date: 2002/01/16 04:35:29 $
+Version $Revision: 0.10 $, released $Date: 2002/02/13 14:01:18 $
 
 =head1 SYNOPSIS
 
@@ -48,8 +65,7 @@ Version $Revision: 0.8 $, released $Date: 2002/01/16 04:35:29 $
 
  my $dateAndTime = $env->getDateAndTime->getText;
 
- my $items = $newsml->getNewsItemList;
- foreach my $item (@$items) {
+ foreach my $newsitem ($newsml->getNewsItemList) {
    # do something with the news item
  }
  ...
@@ -91,7 +107,7 @@ tag. (I may decide that this is a bad idea and change it soon)
 
 =head2 Reading objects
 
-There are five main types of calls:
+There are six main types of calls:
 
 =over 4
 
@@ -102,6 +118,19 @@ Return a reference to an array of elements:
   my $topicsets = $newsml->getTopicSetList;
 
 The array can be referenced as @$topicsets, or an individual element can be referenced as $topicsets->[N].
+
+=item *
+
+Return an actual array of elements:
+
+  my @topicsets = $newsml->getTopicSetList;
+
+The array can be referenced as @topicsets, or an individual element can be referenced as $topicsets[N].
+In addition you can iterate through an array by saying something like
+
+  foreach my $topicset ($newsml->getTopicSetList) {
+    ...
+  }
 
 =item *
 
@@ -132,8 +161,10 @@ Get the contents of an element (ie the text between the opening and closing tags
 
 Not all of these calls work for all elements: for example, if an element is defined in the NewsML DTD
 as having zero or one instances in its parent element, and you try to call getXXXList, B<Syndication::NewsML>
-will "croak" an error. (The error handling will be improved in the future so that it won't croak
-fatally unless you want that to happen)
+will "croak" an error. Similarly when you call getXXX when the DTD specifies that an element can exist
+more than once in that context, NewsML.pm will flag an error to the effect that you should be calling
+getXXXList instead. (The error handling will be improved in the future so that it won't croak
+fatally -- unless you want that to happen.)
 
 The NewsML standard contains some "business rules" also written into the DTD: for example, a NewsItem
 may contain nothing, a NewsComponent, one or more Update elements, or a TopicSet. For some of these
@@ -166,7 +197,7 @@ hear about them at B<brendan@clueful.com.au>.
 
 =head1 SEE ALSO
 
-L<XML::DOM>, L<XML::RSS>
+L<XML::DOM>, L<XML::RSS>, L<XML::XPath>, L<Syndication::NITF>
 
 =head1 AUTHOR
 
@@ -175,358 +206,16 @@ Brendan Quinn, Clueful Consulting Pty Ltd
 
 =head1 COPYRIGHT
 
-Copyright (c) 2001, Brendan Quinn. All Rights Reserved.
+Copyright (c) 2001, 2002, Brendan Quinn. All Rights Reserved.
 This module is free software. It may be used, redistributed
 and/or modified under the same terms as Perl itself.
 
 =cut
 
 #
-# Syndication::NewsML::DOMUtils -- a few helpful routines
-#
-package Syndication::NewsML::DOMUtils;
-use Carp;
-
-# walk the tree of descendents of $node to look for an attribute $attr with value $value.
-# returns the matching node, or undef.
-sub findElementByAttribute {
-	my ($node, $attr, $value) = @_;
-	my $tstattr = $node->getAttributeNode($attr);
-	return $node if defined($tstattr) && ($tstattr->getValue eq $value);
-	my $iternode;
-	if ($node->hasChildNodes) {
-		for my $child ($node->getChildNodes) {
-			if ($child->getNodeType == XML::DOM::ELEMENT_NODE) {
-				$iternode = findElementByAttribute($child, $attr, $value);
-			}
-			return $iternode if defined($iternode);
-		}
-	}
-	return undef;
-}
-
-# return a reference to the NewsML element at the top level of the document.
-# will croak if not NewsML element exists in the parent path of the given node.
-sub getRootNode {
-	my ($node) = @_;
-	if (!defined($node)) {
-		croak "Invalid document! getRootNode couldn't find a NewsML element in parent path";
-	} elsif ($node->getNodeName eq "NewsML") {
-		return $node;
-	} else {
-		return getRootNode($node->getParentNode);
-	} 
-}
-
-#
-# Syndication::NewsML::References -- routines to follow references
-# (any ideas for a better name?)
-package Syndication::NewsML::References;
-use Carp;
-
-# find reference (based on NewsML Toolkit Java version)
-# get referenced data from within this document or possibly an external URL.
-# parameter useExternal, if true, means we can look outside this document if necessary.
-sub findReference {
-	my ($node, $reference, $useExternal) = @_;
-	# if reference starts with # it's in the local document (or should be)
-	if ($reference =~ /^#/) {
-		return $node->getElementByDuid(substr($reference, 1));
-	} elsif ($useExternal) {
-		# use LWP module to get the external document
-		use LWP::UserAgent;
-		my $ua = new LWP::UserAgent;
-		$ua->agent("Syndication::NewsML/0.04" . $ua->agent);
-		my $req = new HTTP::Request GET => substr($reference, 1);
-		my $response = $ua->request($req);
-		if ($response->is_success) {
-			return $response->content;
-		}
-	}
-	# document is external but we're not allowed to go outside
-	# or an error occured with the retrieval
-	# maybe should flag error better than this??
-	return undef;
-}
-
-#
-# Syndication::NewsML::Node -- superclass defining a few functions all these will need
-#
-package Syndication::NewsML::Node;
-use Carp;
-@ISA = qw( XML::DOM::Node );
-
-sub new {
-	my ($class, $node) = @_;
-	my $self = bless {}, $class;
-
-	use constant REQUIRED => 1;
-	use constant IMPLIED => 2;
-	use constant OPTIONAL => 3;
-	use constant ZEROORMORE => 4;
-	use constant ONEORMORE => 5;
-
-	$self->{node} = $node;
-	$self->{text} = undef;
-	$self->{_tagname} = undef;
-
-	# child elements we may want to access
-	$self->{_singleElements} = {};
-	$self->{_multiElements} = {};
-	$self->{_attributes} = {};
-	$self->{_hasText} = 0;
-
-	$self->_init($node); # init will vary for different subclasses
-
-	# call _init of ALL parent classes as well
-	# thanks to Duncan Cameron <dcameron@bcs.org.uk> for suggesting how to get this to work!
-	$_->($self, $node) for ( map {$_->can("_init")||()} @{"${class}::ISA"} );
-
-	return $self;
-}
-
-sub _init { } # undef init, subclasses may want to use it
-
-# get the contents of an element as as XML string (wrapper around XML::DOM::Node::toString)
-# this *includes* the container tag of the current element.
-sub getXML {
-    my ($self) = @_;
-    $self->{xml} = $self->{node}->toString;
-}
-
-# getChildXML is the same as the above but doesn't include the container tag.
-sub getChildXML {
-    my ($self) = @_;
-	my $xmlstring = "";
-    for my $child ($self->{node}->getChildNodes()) {
-		$xmlstring .= $child->toString();
-    }
-	$self->{xml} = $xmlstring;
-}
-
-# get the text of the element, if any
-# now includes get text of all children, including elements, recursively!
-sub getText {
-    my ($self, $stripwhitespace) = @_;
-    croak "Can't use getText on this element" unless $self->{_hasText};
-    $self->{text} = "";
-    $self->{text} = getTextRecursive($self->{node}, $stripwhitespace);
-}
-
-# special "cheat" method to get ALL text in ALL child elements, ignoring any markup tags.
-# can use on any element, anywhere (if there's no text, it will just return an empty string
-# or all whitespace)
-sub getAllText {
-    my ($self, $stripwhitespace) = @_;
-    $self->{text} = "";
-    $self->{text} = getTextRecursive($self->{node}, $stripwhitespace);
-}
-
-sub getTextRecursive {
-    my ($node, $stripwhitespace) = @_;
-    my $textstring = "";
-    for my $child ($node->getChildNodes()) {
-        if ( $child->getNodeType == XML::DOM::ELEMENT_NODE ) {
-            $textstring .= getTextRecursive($child, $stripwhitespace);
-        } else {
-            my $tmpstring = $child->getData();
-            if ($stripwhitespace && ($stripwhitespace eq "strip")) {
-                $tmpstring =~ s/^\s+/ /; #replace with single space -- is this ok?
-                $tmpstring =~ s/\s+$/ /; #replace with single space -- is this ok?
-            }
-            $textstring .= $tmpstring;
-        }
-    }
-    $textstring =~ s/\s+/ /g if $stripwhitespace; #replace with single space -- is this ok?
-    return $textstring;
-}
-
-# get the tag name of this element
-sub getTagName {
-	my ($self) = @_;
-	$self->{_tagname} = $self->{node}->getTagName;
-}
-
-# get the path up to and including this element
-sub getPath {
-	my ($self) = @_;
-	$self->getParentPath($self->{node});
-}
-
-# get the path of this node including all parent nodes (called by getPath)
-sub getParentPath {
-	my ($self, $parent) = @_;
-	# have to look two levels up because XML::DOM treats "#document" as a level in the tree
-	return $parent->getNodeName if !defined($parent->getParentNode->getParentNode);
-	return $self->getParentPath($parent->getParentNode) . "->" . $parent->getNodeName;
-}
-
-use vars '$AUTOLOAD';
-
-# Generic routine to extract child elements from node.
-# handles "getParamaterName", "getParameterNameList"  and "getParameterNameCount"
-sub AUTOLOAD {
-	my ($self) = @_;
-
-	if ($AUTOLOAD =~ /DESTROY$/) {
-		return;
-	}
-
-	# extract attribute name
-	$AUTOLOAD =~ /.*::get(\w+)/
-		or croak "No such method: $AUTOLOAD";
-
-	print "AUTOLOAD: method is $AUTOLOAD\n" if $DEBUG;
-	my $call = $1;
-	if ($call =~ /(\w+)Count$/) {
-
-		# handle getXXXCount method
-		$var = $1;
-		if (!$self->{_multiElements}->{$var}) {
-			croak "Can't use getCount on $var";
-		}
-		my $method = "get".$var."List";
-		$self->$method unless defined($self->{$var."Count"});
-		return $self->{$var."Count"};
-	} elsif ($call =~ /(\w+)List$/) {
-
-		# handle getXXXList method for multi-element tags
-		my $elem = $1;
-
-		if (!$self->{_multiElements}->{$elem}) {
-			croak "No such method: $AUTOLOAD";
-		}
-
-		# return undef if self->node doesn't exist
-		return undef unless defined($self->{node});
-
-		my $list = $self->{node}->getElementsByTagName($elem, 0);
-		if (!$list && $self->{_multiElements}->{$elem} eq ONEORMORE) {
-			croak "Error: required element $elem is missing";
-		} 
-		# set elemCount while we know what it is
-		$self->{$elem."Count"} = $list->getLength;
-		my @elementObjects;
-		my $elementObject;
-		for (my $i = 0; $i < $self->{$elem."Count"}; $i++) {
-			$elementObject = "Syndication::NewsML::$elem"->new($list->item($i))
-				if defined($list->item($i)); # if item is undef, push an undef to the array
-			push(@elementObjects, $elementObject);
-		}
-		$self->{$elem} = \@elementObjects;
-		return $self->{$elem};
-	} elsif ($self->{_singleElements}->{$call}) {
-		# return undef if self->node doesn't exist
-		return undef unless defined($self->{node});
-
-		# handle getXXX method for single-element tags
-		my $element = $self->{node}->getElementsByTagName($call, 0);
-		if (!$element) {
-			if ($self->{_singleElements}->{$call} eq REQUIRED) {
-				croak "Error: required element $call is missing";
-			} else {
-				return undef;
-			}
-		} 
-		$self->{$call} = "Syndication::NewsML::$call"->new($element->item(0))
-			if defined($element->item(0));
-		return $self->{$call};
-	} elsif ($self->{_attributes}->{$call}) {
-		# return undef if self->node doesn't exist
-		return undef unless defined($self->{node});
-		$self->{$call} = $self->{node}->getAttributeNode($call)->getValue;
-		if (!$self->{$call} && $self->{_attributes}->{$call} eq REQUIRED) {
-			croak "Error: $call attribute is required";
-		} 
-		return $self->{$call};
-	} elsif ($self->{_multiElements}->{$call}) {
-		# flag error because multiElement needs to be called with "getBlahList"
-		croak "$call can be a multi-element field: must call get".$call."List";
-	} else {
-		croak "No such method: $AUTOLOAD";
-	}
-}
-
-#
-# Syndication::NewsML::IdNode -- a node with Duid and/or Euid (or neither): most classes will inherit from this
-#
-package Syndication::NewsML::IdNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_attributes}->{Duid} = IMPLIED;
-	$self->{_attributes}->{Euid} = IMPLIED;
-	$self->{localid} = undef;
-}
-
-sub getLocalID {
-	my ($self) = @_;
-	$self->{localid} = $self->getDuid || $self->getEuid;
-}
-
-# Euid is an "Element-unique Identifier". Its value must be unique among elements
-# of the same element-type and having the same parent element.
-
-# This method retrieves a *sibling method* by its Euid attribute.
-# we may need a more generic Euid method later on, possibly using XPath?
-sub getElementByEuid {
-	my ($self, $searchEuid) = @_;
-
-	# start search at my parent
-	Syndication::NewsML::DOMUtils::findElementByAttribute($self->{node}->parentNode,
-		"Euid", $searchEuid);
-}
-
-# Duid is a "Document-unique Identifier". Its value must be unique within the entire document.
-# (thus there is no point starting at a particular node)
-sub getElementByDuid {
-	my ($self, $searchDuid) = @_;
-	my $rootNode = Syndication::NewsML::DOMUtils::getRootNode($self->{node});
-	Syndication::NewsML::DOMUtils::findElementByAttribute($rootNode, "Duid", $searchDuid);
-}
-
-#
-# Syndication::NewsML::DateNode -- superclass defining an extra method for elements
-#                             that contain ISO8601 formatted dates
-#
-package Syndication::NewsML::DateNode;
-use Carp;
-
-# convert ISO8601 date/time into Perl internal date/time.
-# always returns perl internal date, in UTC timezone.
-sub getDatePerl {
-	my ($self, $timezone) = @_;
-	use Time::Local;
-	my $dateISO8601 = $self->getText;
-	my ($yyyy, $mm, $dd, $hh, $mi, $ss, $tzsign, $tzhh, $tzmi) = ($dateISO8601 =~ qr/(\d\d\d\d)(\d\d)(\d\d)T?(\d\d)?(\d\d)?(\d\d)?([+-])?(\d\d)?(\d\d)?/);
-	my $perltime = timegm($ss, $mi, $hh, $dd, $mm-1, $yyyy);
-	if ($tzhh) {
-		my $deltasecs = 60 * ($tzsign eq "-") ? -1*($tzhh * 60 + $tzmi) : ($tzhh * 60 + $tzmi);
-		$perltime += $deltasecs;
-	}
-	return $perltime;
-}
-
-#
-# Syndication::NewsML::CommentNode -- superclass defining what to do in elements
-#                             that contain Comment sub-elements
-#
-package Syndication::NewsML::CommentNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_multiElements}->{Comment} = ZEROORMORE;
-}
-
-#
 # Syndication::NewsML::Comment -- the actual comment
 #
 package Syndication::NewsML::Comment;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode );
 
 sub _init {
@@ -536,108 +225,9 @@ sub _init {
 }
 
 #
-# Syndication::NewsML::AssignmentNode -- superclass defining what to do in elements
-#                                that contain assignment attributes
-#
-package Syndication::NewsML::AssignmentNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_attributes}->{AssignedBy} = IMPLIED;
-	$self->{_attributes}->{Importance} = IMPLIED;
-	$self->{_attributes}->{Confidence} = IMPLIED;
-	$self->{_attributes}->{HowPresent} = IMPLIED;
-	$self->{_attributes}->{DateAndTime} = IMPLIED;
-	$self->{_multiElements}->{Comment} = ZEROORMORE;
-}
-
-#
-# Syndication::NewsML::PropertyNode -- superclass defining what to do in elements
-#                              that contain Property sub-elements
-#
-package Syndication::NewsML::PropertyNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_multiElements}->{Property} = ZEROORMORE;
-}
-
-#
-# Syndication::NewsML::XmlLangNode -- superclass defining what to do with "xml:lang" attributes
-#
-package Syndication::NewsML::XmlLangNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-}
-
-# get xml:lang attribute (can't turn this into an AUTOLOAD because of the colon, dammit!)
-sub getXmlLang {
-	my ($self) = @_;
-	$self->{xmlLang} = $self->{node}->getAttributeNode("xml:lang")->getValue;
-}
-
-#
-# Syndication::NewsML::FormalNameNode -- superclass defining what to do with "formal name" attributes
-#
-package Syndication::NewsML::FormalNameNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_attributes}->{FormalName} = REQUIRED;
-	$self->{_attributes}->{Vocabulary} = IMPLIED;
-	$self->{_attributes}->{Scheme} = IMPLIED;
-}
-
-# get the associated vocabulary for a given FormalName.
-# NOTE other nodes (NewsItemId and ProviderId) also have Vocabularies for their Schemes
-# but are not FormalNameNodes), I guess we should handle them in the same way??
-sub resolveTopicSet {
-	my ($self) = @_;
-	return Syndication::NewsML::References::findReference($self, $self->getVocabulary);
-}
-
-sub resolveTopicSetDescription {
-	my ($self) = @_;
-	# note that this findReference routine only returns a DOM node, not a NewsML one so we
-	# have to use DOM functions to traverse it.
-	my $dumbnode =  Syndication::NewsML::References::findReference($self, $self->getVocabulary);
-	return $dumbnode->getElementsByTagName("Comment")->[0]->getFirstChild->getNodeValue;
-}
-
-sub resolveVocabularyDescription {
-	my ($self) = @_;
-	# get the topicset referred in the vocabulary of this element
-	my $topicset =  Syndication::NewsML::Resources::findResource($self->getVocabulary);
-	# find the topic with this FormalName in the given TopicSet
-	# NOT FINISHED
-}
-
-#
-# Syndication::NewsML::CatalogNode -- superclass defining what to do with Catalog sub-elements
-#
-package Syndication::NewsML::CatalogNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_singleElements}->{Catalog} = OPTIONAL;
-}
-
-#
 # Syndication::NewsML::Catalog -- a container for Resource and TopicUse elements
 #
 package Syndication::NewsML::Catalog;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -653,7 +243,6 @@ sub _init {
 # Syndication::NewsML::TransmissionId -- 
 #
 package Syndication::NewsML::TransmissionId;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -666,7 +255,6 @@ sub _init {
 # Syndication::NewsML::Update -- modification to an existing NewsItem
 #
 package Syndication::NewsML::Update;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -682,7 +270,6 @@ sub _init {
 # Syndication::NewsML::Delete -- instruction to delete an element in a NewsItem
 #
 package Syndication::NewsML::Delete;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -695,7 +282,6 @@ sub _init {
 # Syndication::NewsML::DerivedFrom
 #
 package Syndication::NewsML::DerivedFrom;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CommentNode );
 
 sub _init {
@@ -708,8 +294,7 @@ sub _init {
 # Syndication::NewsML::AssociatedWith -- reference to associated NewsItem
 #
 package Syndication::NewsML::AssociatedWith;
-use Carp;
-@ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CommentNode Syndication::NewsML::CommentNode );
+@ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CommentNode );
 
 sub _init {
 	my ($self, $node) = @_;
@@ -721,7 +306,6 @@ sub _init {
 # Syndication::NewsML::UsageRights -- usage rights for a NewsComponent
 #
 package Syndication::NewsML::UsageRights;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -739,7 +323,6 @@ sub _init {
 # Syndication::NewsML::UsageType -- type of usage to which the rights apply
 #
 package Syndication::NewsML::UsageType;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::AssignmentNode Syndication::NewsML::XmlLangNode );
 
 sub _init {
@@ -751,7 +334,6 @@ sub _init {
 # Syndication::NewsML::TopicUse -- indication of where topic is used in the document
 #
 package Syndication::NewsML::TopicUse;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -765,7 +347,6 @@ sub _init {
 # Syndication::NewsML::Resource
 #
 package Syndication::NewsML::Resource;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -780,7 +361,6 @@ sub _init {
 # Syndication::NewsML::Url -- a URL that can be used to locate a resource
 #
 package Syndication::NewsML::Url;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -794,7 +374,6 @@ sub _init {
 # not necessarily) be a NewsML URN as described in the comment to PublicIdentifier.
 #
 package Syndication::NewsML::Urn;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -803,23 +382,9 @@ sub _init {
 }
 
 #
-# Syndication::NewsML::TopicSetNode -- superclass defining what to do with TopicSet fields
-#
-package Syndication::NewsML::TopicSetNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_multiElements}{TopicSet} = ZEROORMORE;
-}
-
-#
 # Syndication::NewsML::TopicSetRef -- reference to another TopicSet somewhere
 #
 package Syndication::NewsML::TopicSetRef;
-use Carp;
-
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CommentNode );
 
 sub _init {
@@ -828,35 +393,9 @@ sub _init {
 }
 
 #
-# Syndication::NewsML::DataNode -- superclass defining what to do with DataContent and Encoding fields
-#
-package Syndication::NewsML::DataNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_singleElements}{Encoding} = OPTIONAL;
-	$self->{_singleElements}{DataContent} = OPTIONAL;
-}
-
-#
-# Syndication::NewsML::TopicNode -- superclass defining what to do with Topic fields
-#
-package Syndication::NewsML::TopicNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_multiElements}{Topic} = ZEROORMORE;
-}
-
-#
 # Syndication::NewsML::TopicSet -- a container for Topics
 #
 package Syndication::NewsML::TopicSet;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CommentNode Syndication::NewsML::CatalogNode
            Syndication::NewsML::TopicNode Syndication::NewsML::FormalNameNode );
 
@@ -927,7 +466,6 @@ sub getType {
 #
 
 package Syndication::NewsML::NewsComponent;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::CatalogNode Syndication::NewsML::CommentNode
 	Syndication::NewsML::TopicSetNode Syndication::NewsML::XmlLangNode );
 
@@ -980,12 +518,12 @@ sub getSystemIdentifier {
 # these two both return Topic objects
 sub getProvider {
 	my ($self) = @_;
-	$self->{"Provider"} = $self->getAdministrativeMetadata->getProvider->getParty->resolveTopicRef;
+	$self->{"Provider"} = $self->getAdministrativeMetadata->getProvider->getPartyList->[0]->resolveTopicRef;
 }
 
 sub getCreator {
 	my ($self) = @_;
-	$self->{"Creator"} = $self->getAdministrativeMetadata->getCreator->getParty->resolveTopicRef;
+	$self->{"Creator"} = $self->getAdministrativeMetadata->getCreator->getPartyList->[0]->resolveTopicRef;
 }
 
 # source and contributor also exist in AdministrativeMetadata, but they both can be multiples
@@ -996,11 +534,11 @@ sub getCreator {
 sub getCopyrightHolder {
 	my ($self) = @_;
 	my @copyholders;
-	foreach my $copyright (@{$self->getRightsMetadata->getCopyrightList}) {
+	foreach my $copyright ($self->getRightsMetadata->getCopyrightList) {
 		my $text = $copyright->getCopyrightHolder->getText;
 		# ignore text if it's just whitespace
 		push(@copyholders, $text) if $text !~ /^\s*$/;
-		foreach my $origin (@{$copyright->getCopyrightHolder->getOriginList}) {
+		foreach my $origin ($copyright->getCopyrightHolder->getOriginList) {
 			# hard coding [0] here probably isn't good, but when do you have multiple Descriptions?
 			push(@copyholders, $origin->resolveTopicRef->getDescriptionList->[0]->getText);
 		}
@@ -1012,11 +550,11 @@ sub getCopyrightHolder {
 sub getCopyrightDate {
 	my ($self) = @_;
 	my @copydates;
-	foreach my $copyright (@{$self->getRightsMetadata->getCopyrightList}) {
+	foreach my $copyright ($self->getRightsMetadata->getCopyrightList) {
 		my $text = $copyright->getCopyrightDate->getText;
 		# ignore text if it's just whitespace
 		push(@copydates, $text) if $text !~ /^\s*$/;
-		foreach my $origin (@{$copyright->getCopyrightDate->getOriginList}) {
+		foreach my $origin ($copyright->getCopyrightDate->getOriginList) {
 			# hard coding [0] here probably isn't good, but when do you have multiple Descriptions?
 			push(@copydates, $origin->resolveTopicRef->getDescriptionList->[0]->getText);
 		}
@@ -1036,7 +574,6 @@ sub getLanguage {
 #
 
 package Syndication::NewsML::NewsManagement;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::PropertyNode );
 
 sub _init {
@@ -1059,7 +596,6 @@ sub _init {
 #
 
 package Syndication::NewsML::ContentItem;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::CatalogNode Syndication::NewsML::CommentNode Syndication::NewsML::DataNode );
 sub _init {
 	my ($self, $node) = @_;
@@ -1076,7 +612,6 @@ sub _init {
 #
 
 package Syndication::NewsML::RevisionHistory;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1090,7 +625,6 @@ sub _init {
 #
 
 package Syndication::NewsML::TopicOccurrence;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1103,7 +637,6 @@ sub _init {
 #
 
 package Syndication::NewsML::MediaType;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1115,7 +648,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Format;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1127,7 +659,6 @@ sub _init {
 #
 
 package Syndication::NewsML::MimeType;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1139,7 +670,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Notation;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1151,7 +681,6 @@ sub _init {
 #
 
 package Syndication::NewsML::LabelType;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1163,7 +692,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Urgency;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1175,7 +703,6 @@ sub _init {
 #
 
 package Syndication::NewsML::FutureStatus;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1187,7 +714,6 @@ sub _init {
 #
 
 package Syndication::NewsML::NewsItemType;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1199,7 +725,6 @@ sub _init {
 #
 
 package Syndication::NewsML::NewsLineType;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1211,7 +736,6 @@ sub _init {
 #
 
 package Syndication::NewsML::NewsProduct;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1223,7 +747,6 @@ sub _init {
 #
 
 package Syndication::NewsML::NewsService;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1235,7 +758,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Priority;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1247,7 +769,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Role;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1259,7 +780,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Status;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1271,7 +791,6 @@ sub _init {
 #
 
 package Syndication::NewsML::SubjectCode;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1288,7 +807,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Subject;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1300,7 +818,6 @@ sub _init {
 #
 
 package Syndication::NewsML::SubjectDetail;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1312,7 +829,6 @@ sub _init {
 #
 
 package Syndication::NewsML::SubjectMatter;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1324,7 +840,6 @@ sub _init {
 #
 
 package Syndication::NewsML::SubjectQualifier;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1336,7 +851,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Relevance;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1348,7 +862,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Genre;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1360,7 +873,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Language;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1372,7 +884,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Limitations;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::AssignmentNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1385,7 +896,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Characteristics;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::PropertyNode);
 
 sub _init {
@@ -1398,7 +908,6 @@ sub _init {
 #
 
 package Syndication::NewsML::SizeInBytes;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1411,7 +920,6 @@ sub _init {
 #
 
 package Syndication::NewsML::SystemIdentifier;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1424,7 +932,6 @@ sub _init {
 #
 
 package Syndication::NewsML::ThisRevisionCreated;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::DateNode );
 
 sub _init {
@@ -1437,7 +944,6 @@ sub _init {
 #
 
 package Syndication::NewsML::MetadataType;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1448,7 +954,6 @@ sub _init {
 # Syndication::NewsML::Encoding -- the actual encoding
 #
 package Syndication::NewsML::Encoding;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::DataNode );
 
 sub _init {
@@ -1459,7 +964,6 @@ sub _init {
 # Syndication::NewsML::DataContent -- the actual datacontent
 #
 package Syndication::NewsML::DataContent;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1469,22 +973,9 @@ sub _init {
 
 # stuff to do with parties (yeah!) (oh, not that kind of party)
 
-# Syndication::NewsML::PartyNode -- superclass defining what to do in elements
-#                           that contain Party sub-elements
-#
-package Syndication::NewsML::PartyNode;
-use Carp;
-@ISA = qw ( Syndication::NewsML::CommentNode ); # %party entity can have comment as well
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_singleElements}{Party} = ONEORMORE;
-}
-
 # Syndication::NewsML::Party -- the actual party
 #
 package Syndication::NewsML::Party;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1501,7 +992,6 @@ sub resolveTopicRef {
 # Syndication::NewsML::Contributor
 #
 package Syndication::NewsML::Contributor;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::PartyNode );
 
 sub _init {
@@ -1511,7 +1001,6 @@ sub _init {
 # Syndication::NewsML::Creator
 #
 package Syndication::NewsML::Creator;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::PartyNode );
 
 sub _init {
@@ -1521,7 +1010,6 @@ sub _init {
 # Syndication::NewsML::Provider
 #
 package Syndication::NewsML::Provider;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::PartyNode );
 
 sub _init {
@@ -1531,7 +1019,6 @@ sub _init {
 # Syndication::NewsML::SentFrom
 #
 package Syndication::NewsML::SentFrom;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::PartyNode );
 
 sub _init {
@@ -1541,7 +1028,6 @@ sub _init {
 # Syndication::NewsML::SentTo
 #
 package Syndication::NewsML::SentTo;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::PartyNode );
 
 sub _init {
@@ -1551,7 +1037,6 @@ sub _init {
 # Syndication::NewsML::Source
 #
 package Syndication::NewsML::Source;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::PartyNode );
 
 sub _init {
@@ -1564,7 +1049,6 @@ sub _init {
 # Syndication::NewsML::Topic -- "information about a thing" according to the DTD ;-)
 #
 package Syndication::NewsML::Topic;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CommentNode Syndication::NewsML::CatalogNode Syndication::NewsML::PropertyNode);
 
 sub _init {
@@ -1579,7 +1063,6 @@ sub _init {
 #
 
 package Syndication::NewsML::TopicType;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
@@ -1590,7 +1073,6 @@ sub _init {
 #
 
 package Syndication::NewsML::Description;
-use Carp;
 @ISA = qw ( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode );
 
 sub _init {
@@ -1602,7 +1084,6 @@ sub _init {
 # Syndication::NewsML::FormalName -- formal name as an element, not an attribute, for Topics
 #
 package Syndication::NewsML::FormalName;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1614,7 +1095,6 @@ sub _init {
 # Syndication::NewsML::DefaultVocabularyFor
 #
 package Syndication::NewsML::DefaultVocabularyFor;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1626,7 +1106,6 @@ sub _init {
 # Syndication::NewsML::NameLabel -- label to help users identify a NewsItem
 #
 package Syndication::NewsML::NameLabel;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1638,7 +1117,6 @@ sub _init {
 #                            be unique amongst all NewsItems from this provider)
 #
 package Syndication::NewsML::NewsItemId;
-use Carp;
 # subclass Node instead of IdNode as this doesn't have a %localid
 @ISA = qw( Syndication::NewsML::Node );
 
@@ -1652,8 +1130,6 @@ sub _init {
 # Syndication::NewsML::NewsItemRef -- reference to another NewsItem somewhere
 #
 package Syndication::NewsML::NewsItemRef;
-use Carp;
-
 # actually this may need more than just CommentNode as it can have zero or more comments...
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CommentNode );
 
@@ -1665,8 +1141,6 @@ sub _init {
 # Syndication::NewsML::NewsLine -- line of arbitrary text
 #
 package Syndication::NewsML::NewsLine;
-use Carp;
-
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1678,8 +1152,6 @@ sub _init {
 # Syndication::NewsML::NewsLines -- container for lines of news in a NewsComponent
 #
 package Syndication::NewsML::NewsLines;
-use Carp;
-
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1700,8 +1172,6 @@ sub _init {
 # Syndication::NewsML::AdministrativeMetadata -- the "provenance" of a NewsComponent
 #
 package Syndication::NewsML::AdministrativeMetadata;
-use Carp;
-
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CatalogNode Syndication::NewsML::PropertyNode );
 
 sub _init {
@@ -1717,8 +1187,6 @@ sub _init {
 # Syndication::NewsML::DescriptiveMetadata -- describes the content of a NewsComponent
 #
 package Syndication::NewsML::DescriptiveMetadata;
-use Carp;
-
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CatalogNode Syndication::NewsML::PropertyNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1733,8 +1201,6 @@ sub _init {
 # Syndication::NewsML::Metadata -- user-defined type of metadata
 #
 package Syndication::NewsML::Metadata;
-use Carp;
-
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CatalogNode Syndication::NewsML::PropertyNode );
 
 sub _init {
@@ -1745,8 +1211,6 @@ sub _init {
 # Syndication::NewsML::RightsMetadata -- user-defined type of metadata
 #
 package Syndication::NewsML::RightsMetadata;
-use Carp;
-
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CatalogNode Syndication::NewsML::PropertyNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1758,7 +1222,6 @@ sub _init {
 # Syndication::NewsML::BasisForChoice -- XPATH info to help choose between ContentItems
 #
 package Syndication::NewsML::BasisForChoice;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1767,21 +1230,9 @@ sub _init {
 	$self->{_hasText} = 1;
 }
 
-# Syndication::NewsML::OriginNode -- superclass for handling weird Origin things
-#
-package Syndication::NewsML::OriginNode;
-use Carp;
-@ISA = qw( Syndication::NewsML::Node );
-
-sub _init {
-	my ($self, $node) = @_;
-	$self->{_multiElements}{Origin} = ZEROORMORE;
-}
-
 # Syndication::NewsML::Origin
 #
 package Syndication::NewsML::Origin;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::OriginNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1798,7 +1249,6 @@ sub resolveTopicRef {
 # Syndication::NewsML::ByLine -- author/creator in natural language
 #
 package Syndication::NewsML::ByLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1809,7 +1259,6 @@ sub _init {
 # Syndication::NewsML::Copyright
 #
 package Syndication::NewsML::Copyright;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::CommentNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -1821,7 +1270,6 @@ sub _init {
 # Syndication::NewsML::CopyrightDate
 #
 package Syndication::NewsML::CopyrightDate;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1832,7 +1280,6 @@ sub _init {
 # Syndication::NewsML::CopyrightHolder
 #
 package Syndication::NewsML::CopyrightHolder;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1843,7 +1290,6 @@ sub _init {
 # Syndication::NewsML::CopyrightLine
 #
 package Syndication::NewsML::CopyrightLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1854,7 +1300,6 @@ sub _init {
 # Syndication::NewsML::CreditLine
 #
 package Syndication::NewsML::CreditLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1865,7 +1310,6 @@ sub _init {
 # Syndication::NewsML::DateAndTime
 #
 package Syndication::NewsML::DateAndTime;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::DateNode );
 
 sub _init {
@@ -1876,7 +1320,6 @@ sub _init {
 # Syndication::NewsML::DateId
 #
 package Syndication::NewsML::DateId;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::DateNode );
 
 sub _init {
@@ -1887,7 +1330,6 @@ sub _init {
 # Syndication::NewsML::DateLabel
 #
 package Syndication::NewsML::DateLabel;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1898,7 +1340,6 @@ sub _init {
 # Syndication::NewsML::DateLine
 #
 package Syndication::NewsML::DateLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1909,7 +1350,6 @@ sub _init {
 # Syndication::NewsML::EndDate
 #
 package Syndication::NewsML::EndDate;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::AssignmentNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1920,7 +1360,6 @@ sub _init {
 # Syndication::NewsML::StartDate
 #
 package Syndication::NewsML::StartDate;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::AssignmentNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1931,7 +1370,6 @@ sub _init {
 # Syndication::NewsML::FileName
 #
 package Syndication::NewsML::FileName;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -1942,7 +1380,6 @@ sub _init {
 # Syndication::NewsML::FirstCreated
 #
 package Syndication::NewsML::FirstCreated;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::DateNode );
 
 sub _init {
@@ -1953,7 +1390,6 @@ sub _init {
 # Syndication::NewsML::Geography
 #
 package Syndication::NewsML::Geography;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::AssignmentNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1964,7 +1400,6 @@ sub _init {
 # Syndication::NewsML::HeadLine
 #
 package Syndication::NewsML::HeadLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1975,7 +1410,6 @@ sub _init {
 # Syndication::NewsML::KeywordLine
 #
 package Syndication::NewsML::KeywordLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1986,7 +1420,6 @@ sub _init {
 # Syndication::NewsML::NewsLineText
 #
 package Syndication::NewsML::NewsLineText;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -1997,7 +1430,6 @@ sub _init {
 # Syndication::NewsML::RightsHolder
 #
 package Syndication::NewsML::RightsHolder;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::AssignmentNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -2008,7 +1440,6 @@ sub _init {
 # Syndication::NewsML::RightsLine
 #
 package Syndication::NewsML::RightsLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -2019,7 +1450,6 @@ sub _init {
 # Syndication::NewsML::SeriesLine
 #
 package Syndication::NewsML::SeriesLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -2030,7 +1460,6 @@ sub _init {
 # Syndication::NewsML::SlugLine
 #
 package Syndication::NewsML::SlugLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -2041,7 +1470,6 @@ sub _init {
 # Syndication::NewsML::SubHeadLine
 #
 package Syndication::NewsML::SubHeadLine;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
@@ -2052,7 +1480,6 @@ sub _init {
 # Syndication::NewsML::Label
 #
 package Syndication::NewsML::Label;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2064,7 +1491,6 @@ sub _init {
 # Syndication::NewsML::LabelText
 #
 package Syndication::NewsML::LabelText;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2075,7 +1501,6 @@ sub _init {
 # Syndication::NewsML::ProviderId -- should be a domain name apparently
 #
 package Syndication::NewsML::ProviderId;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2087,7 +1512,6 @@ sub _init {
 # Syndication::NewsML::PublicIdentifier
 #
 package Syndication::NewsML::PublicIdentifier;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2098,7 +1522,6 @@ sub _init {
 # Syndication::NewsML::NewsIdentifier
 #
 package Syndication::NewsML::NewsIdentifier;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2114,7 +1537,6 @@ sub _init {
 # Syndication::NewsML::RevisionId -- integer representing division
 #
 package Syndication::NewsML::RevisionId;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2127,7 +1549,6 @@ sub _init {
 # Syndication::NewsML::InsertAfter -- content to insert after a designated element
 #
 package Syndication::NewsML::InsertAfter;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2139,7 +1560,6 @@ sub _init {
 # Syndication::NewsML::InsertBefore -- content to insert before a designated element
 #
 package Syndication::NewsML::InsertBefore;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2151,7 +1571,6 @@ sub _init {
 # Syndication::NewsML::Replace -- content to replace a designated element
 #
 package Syndication::NewsML::Replace;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2163,7 +1582,6 @@ sub _init {
 # Syndication::NewsML::Property
 #
 package Syndication::NewsML::Property;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::PropertyNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -2176,7 +1594,6 @@ sub _init {
 # Syndication::NewsML::OfInterestTo
 #
 package Syndication::NewsML::OfInterestTo;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::AssignmentNode );
 
 sub _init {
@@ -2187,7 +1604,6 @@ sub _init {
 # Syndication::NewsML::RevisionStatus
 #
 package Syndication::NewsML::RevisionStatus;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2199,7 +1615,6 @@ sub _init {
 # Syndication::NewsML::StatusWillChange
 #
 package Syndication::NewsML::StatusWillChange;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2211,7 +1626,6 @@ sub _init {
 # Syndication::NewsML::Identification
 #
 package Syndication::NewsML::Identification;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode );
 
 sub _init {
@@ -2226,7 +1640,6 @@ sub _init {
 # Syndication::NewsML::Instruction
 #
 package Syndication::NewsML::Instruction;
-use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {

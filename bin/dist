@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# $Id: dist,v 0.1 2001/09/11 04:53:58 brendan Exp brendan $
+# $Id: dist,v 0.2 2002/02/13 14:01:18 brendan Exp $
 
 echo "Updating \"The latest version is: ...\" string in doc/README.pod"
 

@@ -1,4 +1,4 @@
-$Id: Changes.pod,v 0.6 2002/01/16 04:36:55 brendan Exp $
+$Id: Changes.pod,v 0.6 2002/01/16 04:36:55 brendan Exp brendan $
 =for html
 <div id="content">
 <H1>
@@ -12,6 +12,28 @@ Revision history for Syndication::NewsML
 Revision history for Syndication::NewsML
 
 =end text
+
+=head2 v0.10 - Released to CPAN 14 Feb 2002
+
+- internals: separated classes out into more than one file
+
+- getXXXList now returns a real array when called in an array context
+ NOTE this may break some code, notably function calls like
+ myRoutine($newscomp->getNewsItemList) will now be passed an array rather
+ than an array reference. Sorry bout that, but remember this is
+ pre-release software you're working with...
+
+- greatly enhanced examples/NewsMLParser.pl
+
+=head2 v0.09 - 13 feb 2002 (unreleased)
+
+- fixed bug that didn't allow multiple Party elements
+
+- fixed bug: dies when asking for an attribute that doesn't exist
+
+- added AFP example file
+
+- added IPTC topic files (we don't use them yet, though)
 
 =head2 v0.08 - Released to CPAN 16 Jan 2002
 

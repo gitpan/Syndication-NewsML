@@ -1,4 +1,4 @@
-$Id: README.pod,v 0.8 2002/01/16 04:37:56 brendan Exp $
+$Id: README.pod,v 0.8 2002/01/16 04:37:56 brendan Exp brendan $
 
 =for html 
 <div id="content">
@@ -37,7 +37,7 @@ or B<http://www.newsml.org/>
 
 =head1 LATEST VERSION AND WHAT'S NEW
 
-The latest version is 0.08, released 16 January 2002.
+The latest version is 0.10, released 14 February 2002.
 
 Download: http://www.cpan.org/authors/id/B/BQ/BQUINN/
 
@@ -45,10 +45,31 @@ Download: http://www.cpan.org/authors/id/B/BQ/BQUINN/
 
 =over 4
 
+=head2 v0.10 - Released to CPAN 14 Feb 2002
+
+- internals: separated some classes out into NewsML/ directory
+
+- getXXXList now returns a real array when called in an array context.
+ NOTE this may break some code, notably function calls like
+ myRoutine($newscomp->getNewsItemList) will now be passed an array rather
+ than an array reference. Sorry bout that, but remember, this is
+ pre-release software you're working with...
+
+=head2 v0.09 - 13 Feb 2002 (unreleased)
+
+- fixed bug that didn't allow multiple Party elements
+
+- fixed bug: dies when asking for an attribute that doesn't exist
+
+- greatly enhanced examples/NewsMLParser.pl
+
+- added AFP example file
+
+- added IPTC topic files (we don't use them yet, though)
+
 =head2 v0.08 - Released to CPAN 16 Jan 2002
 
 - one simple bugfix to make the test suite pass...
-
 
 =head2 v0.07 - Released to CPAN 11 Jan 2002
 
@@ -74,17 +95,6 @@ in a document
 
   Thanks to Peter Hilbring for giving me the prodding required to get this
  done :-)
-
-
-=head2 v0.06 - 1 Nov 2001 (unreleased)
-
-- Enhanced examples/NewsMLParser.pl: now recurses through all NewsComponents.
- It's almost useful!
-
-- Made auto routines handle undefined elements/attributes better: now returns
- undef rather than croaks. Calling a method of an undef class still dies,
- though: that's Perl, there's nothing I can do about it -- so test your return
- codes.
 
 =back
 
@@ -195,7 +205,7 @@ All rights reserved.
 This module is free software. It may be used, redistributed
 and/or modified under the same terms as Perl itself.
 
-$Id: README.pod,v 0.8 2002/01/16 04:37:56 brendan Exp $
+$Id: README.pod,v 0.8 2002/01/16 04:37:56 brendan Exp brendan $
 
 =cut
 
