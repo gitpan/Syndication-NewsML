@@ -7,7 +7,7 @@ use Syndication::NewsML;
 my $TESTS;
 BEGIN { 
 #   require "t/TestDetails.pm"; import TestDetails;
-   $TESTS = 27;
+   $TESTS = 72;
    plan tests => $TESTS; 
 }
 
@@ -117,4 +117,157 @@ MAIN:
 	# test 27
 	ok($resource3->getDefaultVocabularyForList->[0]->getContext, 'Topic/TopicType/@FormalName');
 
+	my $topic = $topicset->getTopicList->[0];
+
+	# test 28
+	ok($topic->getDetails, "www.reuters.com");
+
+	# test 29
+	ok($topic->getDuid, "company1");
+
+	# test 30
+	ok($topic->getTopicTypeList->[0]->getFormalName, "company");
+
+	# test 31
+	ok($topic->getFormalNameList->[0]->getScheme, "ric");
+
+	# test 32
+	ok($topic->getFormalNameList->[0]->getText, "RTRSY.O");
+
+	# test 33
+	ok($topic->getFormalNameList->[1]->getScheme, "nasdticker");
+
+	# test 34
+	ok($topic->getFormalNameList->[1]->getText, "RTRSY");
+
+	# test 35
+	ok($topic->getFormalNameList->[2]->getScheme, "companyshortname");
+
+	# test 36
+	ok($topic->getFormalNameList->[2]->getText, "Reuters");
+
+	# test 37
+	ok($topic->getDescriptionList->[0]->getVariant, "fullcompanyname");
+
+	# test 38
+	ok($topic->getDescriptionList->[0]->getText, "REUTERS PLC");
+
+	# test 39
+	ok($newscomponent->getRole->getFormalName, "SUPER_LINKED_LIST");
+
+	my $newslines = $newscomponent->getNewsLines;
+
+	# test 40
+	ok($newslines->getHeadLineList->[0]->getText, "SLL-SHOWCASE");
+
+	# test 41
+	ok($newslines->getByLineList->[0]->getText, "");
+
+	# test 42
+	ok($newslines->getDateLineList->[0]->getText, "20010907");
+
+	# test 43
+	ok($newslines->getCreditLineList->[0]->getText, "REUTERS");
+
+	# test 44
+	ok($newslines->getCopyrightLineList->[0]->getText, qr/Reuters Limited/);
+
+	# test 45
+	ok($newslines->getSlugLineList->[0]->getText, "OUWDPLUS-SUPER-LINK");
+
+	# test 46
+	ok($newslines->getNewsLineList->[0]->getNewsLineType->getFormalName, "caption");
+
+	# test 47
+	ok($newslines->getNewsLineList->[0]->getNewsLineTextList->[0]->getText, "Super Linked List");
+
+	# test 48
+	ok($newscomponent->getFileName, "");
+
+	# test 49
+	ok($newscomponent->getProvider->getDescriptionList->[0]->getText, "REUTERS PLC");
+
+	# test 50
+	ok($newscomponent->getCreator->getDescriptionList->[0]->getText, "REUTERS PLC");
+
+	my $adminmeta = $newscomponent->getAdministrativeMetadata;
+
+	my $rightsmeta = $newscomponent->getRightsMetadata;
+
+	# test 51
+	ok($newscomponent->getCopyrightHolder, "REUTERS PLC");
+
+	# test 52
+	ok($newscomponent->getCopyrightDate, "");
+
+	# test 53
+	ok($newscomponent->getLanguage, "en");
+
+	my $newscomponent1 = $newscomponent->getNewsComponentList->[0];
+	
+	# test 54
+	ok($newscomponent1->getRole->getFormalName, "NEWS_EVENT");
+
+	# test 55
+	ok($newscomponent1->getNewsLines->getHeadLineList->[0]->getText, "OUKWDPLUS-LUS-MICROSOFT-JUSTICE");
+
+	# test 56
+	ok($newscomponent1->getNewsLines->getSlugLineList->[0]->getText, "");
+
+	# test 57
+	ok($newscomponent1->getMetadataList->[0]->getMetadataType->getFormalName, "Order");
+
+	# test 58
+	ok($newscomponent1->getMetadataList->[0]->getPropertyList->[0]->getFormalName, "StoryOrder");
+
+	# test 59
+	ok($newscomponent1->getMetadataList->[0]->getPropertyList->[0]->getValue, "1");
+
+	# they love nesting their newscomponents...
+	my $newscomponent1_1 = $newscomponent1->getNewsComponentList->[0];
+
+	# test 60
+	ok($newscomponent1_1->getEquivalentsList, "no");
+
+	# test 61
+	ok($newscomponent1_1->getRole->getFormalName, "MAIN");
+
+	# this is getting ridiculous!
+	my $newscomponent1_1_1 = $newscomponent1_1->getNewsComponentList->[0];
+
+	# test 62
+	ok($newscomponent1_1_1->getEquivalentsList, "yes");
+
+	# test 63
+	ok($newscomponent1_1_1->getRole->getFormalName, "TEXT");
+
+	# test 64
+	ok($newscomponent1_1_1->getBasisForChoiceList->[0]->getText, '/@xml:lang');
+
+	# test 65
+	ok($newscomponent1_1_1->getMetadataList->[0]->getMetadataType->getFormalName, "Order");
+
+	# test 66
+	ok($newscomponent1_1_1->getMetadataList->[0]->getPropertyList->[0]->getFormalName, "ComponentNumber");
+
+	# test 67
+	ok($newscomponent1_1_1->getMetadataList->[0]->getPropertyList->[0]->getValue, "1");
+
+	# lowest layer -- thank goodness!
+	my $newscomponent1_1_1_1 = $newscomponent1_1_1->getNewsComponentList->[0];
+
+	# test 68
+	ok($newscomponent1_1_1_1->getEquivalentsList, "no"); # test out default
+
+	# test 69
+	ok($newscomponent1_1_1_1->getXmlLang, "en");
+
+	# test 70
+	ok($newscomponent1_1_1_1->getNewsLines->getHeadLineList->[0]->getText, qr/Microsoft/);
+	
+	# test 71
+	ok($newscomponent1_1_1_1->getNewsLines->getSlugLineList->[0]->getText, qr/JUSTICE/);
+	
+	# test 72
+	ok($newscomponent1_1_1_1->getNewsItemRefList->[0]->getNewsItem, "2001-09-07T084140Z_01_CAS731511_RTRIDST_0_OUKWDPLUS-LUS-MICROSOFT-JUSTICE.XML");
 }

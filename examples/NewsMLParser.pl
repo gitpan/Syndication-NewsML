@@ -5,7 +5,7 @@ package NewsMLParser;
 # not finished. It's still a good example of what you can do with the module, though.
 
 use strict;
-use Syndication::NewsML;
+use NewsML;
 
 MAIN:
 {
@@ -62,7 +62,10 @@ MAIN:
 			print "News Component:\n";
 			print " Equivalents list: ".$comp->getEquivalentsList."\n";
 			# if yes then should follow "basis for choice"
-			print " ...\n";
+			# here...
+			print " Provider: ".$comp->getProvider."\n";
+			print " Creator: ".$comp->getCreator."\n";
+			print " Copyright holder: ".$comp->getCopyrightHolder."\n";
 		} elsif ($itemtype eq "Update") {
 			my $update = $item->getUpdate;
 			print "got update\n";

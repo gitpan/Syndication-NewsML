@@ -24,31 +24,39 @@ Syndication::NewsML -- a NewsML library for Perl
     or http://www.newsml.org/
 
 LATEST VERSION AND WHAT'S NEW
-    The latest version is 0.04, released 26 September 2001.
+    The latest version is 0.05, released 11 October 2001.
 
     Download: http://www.cpan.org/authors/id/B/BQ/BQUINN/
 
-  What's New in 0.04:
+  What's New in 0.05:
 
-    *   Some TopicSet support
+        Still a pre-release version but we're getting closer.
 
-        TopicSet support includes the routines getElementByEuid and
-        getElementByDuid, which are required to find internal references to
-        TopicSets for a given element. Also includes findReference,
-        resolveTopicSet and resolveTopicSetDescription methods, used to
-        return the related topic set for further processing. See
-        t/3_complex.t for a simple usage example.
+        - Fixed faulty call to all parent _init functions in
+        Syndication::NewsML::Node which meant the calls to parent _init
+        classes could be removed... thanks to Duncan Cameron
+        <dcameron@bcs.org.uk> for the tip, which allowed me to get rid of
+        285 lines of crappy code!
 
-        Better date handling
+        - Introduced better error reporting for calling getXXX when you
+        should be calling getXXXList (for elements that could be "zero or
+        more" or "one or more")
 
-        All date objects now have a method getDatePerl() which converts a
-        ISO8601-style date (the NewsML standard) to a Perl timestamp in UTC,
-        for use with localtime() etc.
+        - Found and fixed a few minor mismatches between the module and the
+        DTD
 
-        Name change
+        - added resolveTopicRef to Origin and Party nodes, which uses the
+        findReference method to get the Topic node referred by a #reference
+        in Origin's Href and Party's Topic attributes. See tests and
+        examples for usage.
 
-        The module is now called Syndciation::NewsML rather than
-        News::NewsML.
+        - added some "helper functions" to grab metadata directly from a
+        NewsComponent node, rather than having to delve into the metadata
+        structure to pull out simple items like copyright date and news
+        provider. This is the first step down the path of creating a simpler
+        API for NewsML access.
+
+        - Filled out more of t/4_reuters.t test and examples/NewsMLParser.pl
 
     See the Changes file for previous releases.
 
@@ -141,8 +149,8 @@ AUTHOR AND COPYRIGHT
     This module is free software. It may be used, redistributed and/or
     modified under the same terms as Perl itself.
 
-    $Id: README.pod,v 0.4 2001/09/26 01:27:34 brendan Exp $
+    $Id: README.pod,v 0.5 2001/10/11 12:26:44 brendan Exp $
 
     ** This file was automatically generated from **
-    ** doc/Changes.pod. To edit it, see there.    **
+    ** doc/README.pod. To edit it, see there.    **
 

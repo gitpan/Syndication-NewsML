@@ -1,8 +1,8 @@
-# $Id: NewsML.pm,v 0.4 2001/09/26 01:52:17 brendan Exp $
+# $Id: NewsML.pm,v 0.5 2001/10/11 12:19:19 brendan Exp $
 # Syndication::NewsML.pm
 
-$VERSION     = sprintf("%d.%02d", q$Revision: 0.4 $ =~ /(\d+)\.(\d+)/);
-$VERSION_DATE= sprintf("%s", q$Date: 2001/09/26 01:52:17 $ =~ m# (.*) $# );
+$VERSION     = sprintf("%d.%02d", q$Revision: 0.5 $ =~ /(\d+)\.(\d+)/);
+$VERSION_DATE= sprintf("%s", q$Date: 2001/10/11 12:19:19 $ =~ m# (.*) $# );
 
 $DEBUG = 0;
 
@@ -26,9 +26,6 @@ sub _init {
 	$self->{_singleElements}{NewsEnvelope} = REQUIRED;
 	$self->{_multiElements}{NewsItem} = ONEORMORE;
 
-	# call all parent _init methods
-	$self->$_($self, $self->{node}) for ( map {$_->can("_init")||()} @ISA );
-
 	return $self;
 }
 
@@ -40,7 +37,7 @@ Syndication::NewsML -- Parser for NewsML documents
 
 =head1 VERSION
 
-Version $Revision: 0.4 $, released $Date: 2001/09/26 01:52:17 $
+Version $Revision: 0.5 $, released $Date: 2001/10/11 12:19:19 $
 
 =head1 SYNOPSIS
 
@@ -285,11 +282,10 @@ sub new {
 	$self->_init($node); # init will vary for different subclasses
 
 	# call _init of ALL parent classes as well
-	# this doesn't seem to work here so we have to put it in each individual _init method -- yuck!
-	# how can we make it work from here instead?
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
+	# thanks to Duncan Cameron <dcameron@bcs.org.uk> for suggesting how to get this to work!
+	$_->($self, $node) for ( map {$_->can("_init")||()} @{"${class}::ISA"} );
 
-	return $self;	
+	return $self;
 }
 
 sub _init { } # undef init, subclasses may want to use it
@@ -298,7 +294,8 @@ sub _init { } # undef init, subclasses may want to use it
 sub getText {
 	my ($self) = @_;
 	croak "Can't use getText on this element" unless $self->{_hasText};
-	$self->{text} = $self->{node}->getFirstChild->getNodeValue;
+	# return blank string if node doesn't exist (DOM's way of saying it's empty)
+	$self->{text} = ($self->{node}->getFirstChild) ? $self->{node}->getFirstChild->getNodeValue : "";
 }
 
 # get the tag name of this element
@@ -387,6 +384,9 @@ sub AUTOLOAD {
 			croak "Error: $call attribute is required";
 		} 
 		return $self->{$call};
+	} elsif ($self->{_multiElements}->{$call}) {
+		# flag error because multiElement needs to be called with "getBlahList"
+		croak "$call can be a multi-element field: must call get".$call."List";
 	} else {
 		croak "No such method: $AUTOLOAD";
 	}
@@ -404,8 +404,6 @@ sub _init {
 	$self->{_attributes}->{Duid} = IMPLIED;
 	$self->{_attributes}->{Euid} = IMPLIED;
 	$self->{localid} = undef;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 sub getLocalID {
@@ -467,7 +465,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_multiElements}->{Comment} = ZEROORMORE;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -481,8 +478,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}->{TranslationOf} = IMPLIED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -501,7 +496,6 @@ sub _init {
 	$self->{_attributes}->{HowPresent} = IMPLIED;
 	$self->{_attributes}->{DateAndTime} = IMPLIED;
 	$self->{_multiElements}->{Comment} = ZEROORMORE;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -515,7 +509,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_multiElements}->{Property} = ZEROORMORE;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -527,7 +520,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # get xml:lang attribute (can't turn this into an AUTOLOAD because of the colon, dammit!)
@@ -548,7 +540,6 @@ sub _init {
 	$self->{_attributes}->{FormalName} = REQUIRED;
 	$self->{_attributes}->{Vocabulary} = IMPLIED;
 	$self->{_attributes}->{Scheme} = IMPLIED;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # get the associated vocabulary for a given FormalName.
@@ -585,7 +576,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_singleElements}->{Catalog} = OPTIONAL;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -602,8 +592,6 @@ sub _init {
 	$self->{_multiElements}->{Resource} = ZEROORMORE;
 	$self->{_multiElements}->{TopicUse} = ZEROORMORE;
 	$self->{_attributes}->{Href} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -617,8 +605,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}->{Repeat} = IMPLIED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -631,13 +617,10 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 
-#	child elements
 	$self->{_multiElements}{InsertBefore} = ZEROORMORE;
 	$self->{_multiElements}{InsertAfter} = ZEROORMORE;
 	$self->{_multiElements}{Replace} = ZEROORMORE;
 	$self->{_multiElements}{Delete} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -651,8 +634,6 @@ sub _init {
 	my ($self, $node) = @_;
 
 	$self->{_attributes}{DuidRef} = REQUIRED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -666,8 +647,6 @@ sub _init {
 	my ($self, $node) = @_;
 
 	$self->{_attributes}{NewsItem} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -681,7 +660,6 @@ sub _init {
 	my ($self, $node) = @_;
 
 	$self->{_attributes}{NewsItem} = IMPLIED;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -694,15 +672,12 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 
-#	child elements
 	$self->{_singleElements}{UsageType} = OPTIONAL;
 	$self->{_singleElements}{Geography} = OPTIONAL;
 	$self->{_singleElements}{RightsHolder} = OPTIONAL;
 	$self->{_singleElements}{Limitations} = OPTIONAL;
 	$self->{_singleElements}{StartDate} = OPTIONAL;
 	$self->{_singleElements}{EndDate} = OPTIONAL;
-
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -715,7 +690,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -728,11 +702,8 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 
-#   child elements
 	$self->{_attributes}{Topic} = REQUIRED;
 	$self->{_attributes}{Context} = IMPLIED;
-
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -745,11 +716,9 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 
-#	child elements
 	$self->{_singleElements}{Urn} = OPTIONAL;
 	$self->{_multiElements}{Url} = ZEROORMORE;
 	$self->{_multiElements}{DefaultVocabularyFor} = ZEROORMORE;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -762,7 +731,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -777,7 +745,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -790,7 +757,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_multiElements}{TopicSet} = ZEROORMORE;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -804,7 +770,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{TopicSet} = IMPLIED;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -818,7 +783,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_singleElements}{Encoding} = OPTIONAL;
 	$self->{_singleElements}{DataContent} = OPTIONAL;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -831,7 +795,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_multiElements}{Topic} = ZEROORMORE;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -845,9 +808,7 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 
-#   child elements
 	$self->{_multiElements}{TopicSetRef} = ZEROORMORE;
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -861,8 +822,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	croak "Error! A NewsML document must contain one and only one NewsEnvelope!" unless defined($node);
-
-	# child elements
 	$self->{_singleElements}{DateAndTime} = REQUIRED;
 	$self->{_singleElements}{TransmissionId} = OPTIONAL;
 	$self->{_singleElements}{SentFrom} = OPTIONAL;
@@ -870,8 +829,6 @@ sub _init {
 	$self->{_singleElements}{Priority} = OPTIONAL;
 	$self->{_multiElements}{NewsService} = ZEROORMORE;
 	$self->{_multiElements}{NewsProduct} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -886,14 +843,11 @@ sub _init {
 	my ($self, $node) = @_;
 	croak "Error! A NewsML document must contain at least one NewsItem!" unless defined($node);
 
-	# child elements
 	$self->{_singleElements}{Identification} = REQUIRED;
 	$self->{_singleElements}{NewsManagement} = REQUIRED;
 	$self->{_singleElements}{NewsComponent} = OPTIONAL;
 	$self->{_singleElements}{TopicSet} = OPTIONAL;
 	$self->{_multiElements}{Update} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # wow! a real method, not an autoload! :-)
@@ -925,7 +879,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 
-	# child elements
 	$self->{_singleElements}{Role} = OPTIONAL;
 	$self->{_singleElements}{NewsLines} = OPTIONAL;
 	$self->{_singleElements}{AdministrativeMetadata} = OPTIONAL;
@@ -937,11 +890,6 @@ sub _init {
 	$self->{_multiElements}{NewsItemRef} = ZEROORMORE;
 	$self->{_multiElements}{NewsComponent} = ZEROORMORE;
 	$self->{_multiElements}{ContentItem} = ZEROORMORE;
-# see methods below
-#	$self->{_attributes}{Essential} = IMPLIED; # *** needs to default to 'no' -- how???
-#	$self->{_attributes}{EquivalentsList} = IMPLIED; #  *** needs to default to 'no' -- how???
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # may be a nicer/more generic way of doing this, but this will do for now
@@ -960,6 +908,73 @@ sub getEquivalentsList {
 
 # should really do some sanity checking because a NewsComponent can't contain more than one type of
 # NewsItem/NewsItemRef, NewsComponent, or ContentItem
+
+## Metadata helpers -- so we don't have to delve too deep for not much reason
+
+# Administrative Metadata
+sub getFileName {
+	my ($self) = @_;
+	$self->{"FileName"} = $self->getAdministrativeMetadata->getFileName->getText;
+}
+
+sub getSystemIdentifier {
+	my ($self) = @_;
+	$self->{"SystemIdentifier"} = $self->getAdministrativeMetadata->getSystemIdentifier->getText;
+}
+
+# these two both return Topic objects
+sub getProvider {
+	my ($self) = @_;
+	$self->{"Provider"} = $self->getAdministrativeMetadata->getProvider->getParty->resolveTopicRef;
+}
+
+sub getCreator {
+	my ($self) = @_;
+	$self->{"Creator"} = $self->getAdministrativeMetadata->getCreator->getParty->resolveTopicRef;
+}
+
+# source and contributor also exist in AdministrativeMetadata, but they both can be multiples
+# and source can have an extra attr (NewsItem) so let's leave them alone for now
+
+# Rights Metadata
+# should this return text or (an array of) Topic object(s)?
+sub getCopyrightHolder {
+	my ($self) = @_;
+	my @copyholders;
+	foreach my $copyright (@{$self->getRightsMetadata->getCopyrightList}) {
+		my $text = $copyright->getCopyrightHolder->getText;
+		# ignore text if it's just whitespace
+		push(@copyholders, $text) if $text !~ /^\s*$/;
+		foreach my $origin (@{$copyright->getCopyrightHolder->getOriginList}) {
+			# hard coding [0] here probably isn't good, but when do you have multiple Descriptions?
+			push(@copyholders, $origin->resolveTopicRef->getDescriptionList->[0]->getText);
+		}
+	}
+	$self->{"CopyrightHolder"} = \@copyholders;
+	return wantarray ? @copyholders : join(',', @copyholders);
+}
+
+sub getCopyrightDate {
+	my ($self) = @_;
+	my @copydates;
+	foreach my $copyright (@{$self->getRightsMetadata->getCopyrightList}) {
+		my $text = $copyright->getCopyrightDate->getText;
+		# ignore text if it's just whitespace
+		push(@copydates, $text) if $text !~ /^\s*$/;
+		foreach my $origin (@{$copyright->getCopyrightDate->getOriginList}) {
+			# hard coding [0] here probably isn't good, but when do you have multiple Descriptions?
+			push(@copydates, $origin->resolveTopicRef->getDescriptionList->[0]->getText);
+		}
+	}
+	$self->{"CopyrightDate"} = \@copydates;
+	return wantarray ? @copydates : join(',', @copydates);
+}
+
+# descriptive metadata
+sub getLanguage {
+	my ($self) = @_;
+	$self->{"Language"} = $self->getDescriptiveMetadata->getLanguageList->[0]->getFormalName;
+}
 
 #
 # Syndication::NewsML::NewsManagement
@@ -982,8 +997,6 @@ sub _init {
 	$self->{_multiElements}{DerivedFrom} = ZEROORMORE;
 	$self->{_multiElements}{AssociatedWith} = ZEROORMORE;
 	$self->{_multiElements}{Instruction} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1001,8 +1014,6 @@ sub _init {
 	$self->{_singleElements}{Notation} = OPTIONAL;
 	$self->{_singleElements}{Characteristics} = OPTIONAL;
 	$self->{_attributes}{Href} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1017,8 +1028,6 @@ sub _init {
 	my ($self, $node) = @_;
 
 	$self->{_attributes}{Href} = REQUIRED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1032,8 +1041,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{Topic} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1046,8 +1053,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1060,8 +1065,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1074,8 +1077,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1088,8 +1089,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1102,8 +1101,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1116,8 +1113,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1130,8 +1125,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1144,8 +1137,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1158,8 +1149,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1172,8 +1161,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1186,8 +1173,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1200,8 +1185,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1214,8 +1197,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1228,8 +1209,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1243,13 +1222,10 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 
-	# child elements
 	$self->{_multiElements}{Subject} = ZEROORMORE;
 	$self->{_multiElements}{SubjectMatter} = ZEROORMORE;
 	$self->{_multiElements}{SubjectDetail} = ZEROORMORE;
 	$self->{_multiElements}{SubjectQualifier} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1262,8 +1238,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1276,8 +1250,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1290,8 +1262,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1304,8 +1274,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1318,8 +1286,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1332,8 +1298,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1346,8 +1310,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1361,8 +1323,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1375,11 +1335,7 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_singleElements}{SizeInBytes} = OPTIONAL;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1393,8 +1349,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1408,8 +1362,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1423,8 +1375,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -1438,8 +1388,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Encoding -- the actual encoding
@@ -1450,10 +1398,7 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-#	child elements
 	$self->{_attributes}{Notation} = REQUIRED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::DataContent -- the actual datacontent
@@ -1465,38 +1410,37 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
-# stuff to do with parties (yeah!)
+# stuff to do with parties (yeah!) (oh, not that kind of party)
 
 # Syndication::NewsML::PartyNode -- superclass defining what to do in elements
 #                           that contain Party sub-elements
 #
 package Syndication::NewsML::PartyNode;
 use Carp;
-@ISA = qw ( Syndication::NewsML::CommentNode ); # can have comment as well
+@ISA = qw ( Syndication::NewsML::CommentNode ); # %party entity can have comment as well
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
-	$self->{_singleElements}{Party} = 1; # hmm???
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
+	$self->{_singleElements}{Party} = ONEORMORE;
 }
 
 # Syndication::NewsML::Party -- the actual party
 #
 package Syndication::NewsML::Party;
 use Carp;
-@ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode Syndication::NewsML::TopicNode );
+@ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::FormalNameNode );
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
+	$self->{_attributes}{Topic} = IMPLIED;
+}
+
+sub resolveTopicRef {
+	my ($self) = @_;
+	my $refnode = Syndication::NewsML::References::findReference($self, $self->getTopic, 0);
+	return new Syndication::NewsML::Topic($refnode);
 }
 
 # Syndication::NewsML::Contributor
@@ -1507,8 +1451,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Creator
@@ -1519,8 +1461,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Provider
@@ -1531,8 +1471,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::SentFrom
@@ -1543,8 +1481,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::SentTo
@@ -1555,8 +1491,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Source
@@ -1567,11 +1501,7 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_attributes}{NewsItem} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Topic
@@ -1584,14 +1514,10 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_multiElements}{TopicType} = ONEORMORE;
 	$self->{_multiElements}{Description} = ZEROORMORE;
 	$self->{_multiElements}{FormalName} = ZEROORMORE;
 	$self->{_attributes}{Details} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::TopicType -- type of a topic (amazing huh?)
@@ -1603,8 +1529,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Description -- formal name as an element, not an attribute, for Topics
@@ -1616,10 +1540,8 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-#	child elements
 	$self->{_attributes}{Variant} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
+	$self->{_hasText} = 1;
 }
 
 # Syndication::NewsML::FormalName -- formal name as an element, not an attribute, for Topics
@@ -1632,8 +1554,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{Scheme} = IMPLIED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::DefaultVocabularyFor
@@ -1644,12 +1564,8 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_attributes}{Context} = REQUIRED;
 	$self->{_attributes}{Scheme} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::NameLabel -- label to help users identify a NewsItem
@@ -1661,8 +1577,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::NewsItemId -- identifier for a NewsItem (combination of NewsItemId and DateId must
@@ -1678,8 +1592,6 @@ sub _init {
 	$self->{_attributes}{Vocabulary} = IMPLIED;
 	$self->{_attributes}{Scheme} = IMPLIED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::NewsItemRef -- reference to another NewsItem somewhere
@@ -1693,8 +1605,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{NewsItem} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::NewsLine -- line of arbitrary text
@@ -1706,12 +1616,8 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_singleElements}{NewsLineType} = REQUIRED;
 	$self->{_multiElements}{NewsLineText} = ONEORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::NewsLines -- container for lines of news in a NewsComponent
@@ -1723,8 +1629,6 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_multiElements}{HeadLine} = ZEROORMORE;
 	$self->{_multiElements}{SubHeadLine} = ZEROORMORE;
 	$self->{_multiElements}{ByLine} = ZEROORMORE;
@@ -1736,8 +1640,6 @@ sub _init {
 	$self->{_multiElements}{SlugLine} = ZEROORMORE;
 	$self->{_multiElements}{KeywordLine} = ZEROORMORE;
 	$self->{_multiElements}{NewsLine} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::AdministrativeMetadata -- the "provenance" of a NewsComponent
@@ -1749,17 +1651,12 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_singleElements}{FileName} = OPTIONAL;
 	$self->{_singleElements}{SystemIdentifier} = OPTIONAL;
 	$self->{_singleElements}{Provider} = OPTIONAL;
 	$self->{_singleElements}{Creator} = OPTIONAL;
 	$self->{_multiElements}{Source} = ZEROORMORE;
 	$self->{_multiElements}{Contributor} = ZEROORMORE;
-
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::DescriptiveMetadata -- describes the content of a NewsComponent
@@ -1771,15 +1668,11 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_singleElements}{Genre} = OPTIONAL;
 	$self->{_multiElements}{Language} = ZEROORMORE;
 	$self->{_multiElements}{SubjectCode} = ZEROORMORE;
 	$self->{_multiElements}{OfInterestTo} = ZEROORMORE;
 	$self->{_multiElements}{TopicOccurrence} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Metadata -- user-defined type of metadata
@@ -1792,8 +1685,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_singleElements}{MetadataType} = REQUIRED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::RightsMetadata -- user-defined type of metadata
@@ -1805,13 +1696,8 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_multiElements}{Copyright} = ZEROORMORE;
 	$self->{_multiElements}{UsageRights} = ZEROORMORE;
-
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::BasisForChoice -- XPATH info to help choose between ContentItems
@@ -1824,8 +1710,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{Rank} = IMPLIED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::OriginNode -- superclass for handling weird Origin things
@@ -1836,10 +1720,7 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
 	$self->{_multiElements}{Origin} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Origin
@@ -1851,21 +1732,23 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{Href} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
-# Syndication::NewsML::Byline -- author/creator in natural language
+sub resolveTopicRef {
+	my ($self) = @_;
+	my $refnode = Syndication::NewsML::References::findReference($self, $self->getHref, 0);
+	return new Syndication::NewsML::Topic($refnode);
+}
+
+# Syndication::NewsML::ByLine -- author/creator in natural language
 #
-package Syndication::NewsML::Byline;
+package Syndication::NewsML::ByLine;
 use Carp;
 @ISA = qw( Syndication::NewsML::IdNode Syndication::NewsML::XmlLangNode Syndication::NewsML::OriginNode );
 
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Copyright
@@ -1878,8 +1761,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_singleElements}{CopyrightHolder} = REQUIRED;
 	$self->{_singleElements}{CopyrightDate} = REQUIRED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::CopyrightDate
@@ -1891,8 +1772,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::CopyrightHolder
@@ -1904,8 +1783,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::CopyrightLine
@@ -1917,8 +1794,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::CreditLine
@@ -1930,8 +1805,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::DateAndTime
@@ -1943,8 +1816,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::DateId
@@ -1956,8 +1827,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::DateLabel
@@ -1969,8 +1838,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::DateLine
@@ -1982,8 +1849,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::EndDate
@@ -1995,8 +1860,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::StartDate
@@ -2008,8 +1871,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::FileName
@@ -2021,8 +1882,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::FirstCreated
@@ -2034,8 +1893,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Geography
@@ -2047,8 +1904,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::HeadLine
@@ -2060,8 +1915,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::KeywordLine
@@ -2073,8 +1926,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::NewsLineText
@@ -2086,8 +1937,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::RightsHolder
@@ -2099,8 +1948,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::RightsLine
@@ -2112,8 +1959,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::SeriesLine
@@ -2125,8 +1970,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::SlugLine
@@ -2138,8 +1981,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::SubHeadLine
@@ -2151,8 +1992,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Label
@@ -2163,12 +2002,8 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_singleElements}{LabelType} = REQUIRED;
 	$self->{_singleElements}{LabelText} = REQUIRED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::LabelText
@@ -2180,8 +2015,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::ProviderId -- should be a domain name apparently
@@ -2194,8 +2027,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{Vocabulary} = IMPLIED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::PublicIdentifier
@@ -2207,8 +2038,6 @@ use Carp;
 sub _init {
 	my ($self, $node) = @_;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::NewsIdentifier
@@ -2225,8 +2054,6 @@ sub _init {
 	$self->{_singleElements}{RevisionId} = REQUIRED;
 	$self->{_singleElements}{PublicIdentifier} = REQUIRED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::RevisionId -- integer representing division
@@ -2240,8 +2067,6 @@ sub _init {
 	$self->{_attributes}{PreviousRevision} = REQUIRED;
 	$self->{_attributes}{Update} = REQUIRED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::InsertAfter -- content to insert after a designated element
@@ -2254,8 +2079,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{DuidRef} = REQUIRED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::InsertBefore -- content to insert before a designated element
@@ -2268,8 +2091,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{DuidRef} = REQUIRED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Replace -- content to replace a designated element
@@ -2282,8 +2103,6 @@ sub _init {
 	my ($self, $node) = @_;
 	$self->{_attributes}{DuidRef} = REQUIRED;
 	$self->{_hasText} = 1;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Property
@@ -2294,12 +2113,9 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
 	$self->{_attributes}{Value} = IMPLIED;
 	$self->{_attributes}{ValueRef} = IMPLIED;
 	$self->{_attributes}{AllowedValues} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::OfInterestTo
@@ -2310,10 +2126,7 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-#	child elements
 	$self->{_singleElements}{Relevance} = OPTIONAL;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::RevisionStatus
@@ -2324,12 +2137,8 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_singleElements}{Status} = REQUIRED;
 	$self->{_attributes}{Revision} = IMPLIED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::StatusWillChange
@@ -2340,12 +2149,8 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_singleElements}{FutureStatus} = REQUIRED;
 	$self->{_singleElements}{DateAndTime} = REQUIRED;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 # Syndication::NewsML::Identification
@@ -2356,14 +2161,10 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_singleElements}{NewsIdentifier} = REQUIRED;
 	$self->{_singleElements}{NameLabel} = OPTIONAL;
 	$self->{_singleElements}{DateLabel} = OPTIONAL;
 	$self->{_multiElements}{Label} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }
 
 #
@@ -2375,9 +2176,5 @@ use Carp;
 
 sub _init {
 	my ($self, $node) = @_;
-
-#	child elements
 	$self->{_multiElements}{RevisionStatus} = ZEROORMORE;
-	# call all parent _init methods
-	$self->$_($self, $node) for ( map {$_->can("_init")||()} @ISA );
 }

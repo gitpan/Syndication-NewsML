@@ -1,5 +1,31 @@
 Revision history for Syndication::NewsML
 
+  v0.05 - Released to CPAN 11 Oct 2001
+
+    - Fixed faulty call to all parent _init functions in
+    Syndication::NewsML::Node which meant the calls to parent _init classes
+    could be removed... thanks to Duncan Cameron <dcameron@bcs.org.uk> for
+    the tip, which allowed me to get rid of 285 lines of crappy code!
+
+    - Introduced better error reporting for calling getXXX when you should
+    be calling getXXXList (for elements that could be "zero or more" or "one
+    or more")
+
+    - Found and fixed a few minor mismatches between the module and the DTD
+
+    - added resolveTopicRef to Origin and Party nodes, which uses the
+    findReference method to get the Topic node referred by a #reference in
+    Origin's Href and Party's Topic attributes. See tests and examples for
+    usage.
+
+    - added some "helper functions" to grab metadata directly from a
+    NewsComponent node, rather than having to delve into the metadata
+    structure to pull out simple items like copyright date and news
+    provider. This is the first step down the path of creating a simpler API
+    for NewsML access.
+
+    - Filled out more of t/4_reuters.t test and examples/NewsMLParser.pl
+
   v0.04 - Released to CPAN, 26 Sep 2001
 
     - Added resolveTopicSet, resolveTopicSetDescription to FormalNameNode

@@ -1,7 +1,7 @@
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
-# $Id$
+# $Id: Makefile.PL,v 1.1 2001/10/11 12:21:15 brendan Exp $
 
 
 my @programs_to_install = qw( );
