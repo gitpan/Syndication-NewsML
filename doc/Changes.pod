@@ -1,4 +1,4 @@
-$Id: Changes.pod,v 0.5 2002/01/11 03:19:44 brendan Exp $
+$Id: Changes.pod,v 0.6 2002/01/16 04:36:55 brendan Exp $
 =for html
 <div id="content">
 <H1>
@@ -12,6 +12,11 @@ Revision history for Syndication::NewsML
 Revision history for Syndication::NewsML
 
 =end text
+
+=head2 v0.08 - Released to CPAN 16 Jan 2002
+
+- A three-byte change (initialising a variable) which makes the test suite
+ pass... sorry about that guys!
 
 =head2 v0.07 - Released to CPAN 11 Jan 2002
 

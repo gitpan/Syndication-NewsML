@@ -1,5 +1,10 @@
 Revision history for Syndication::NewsML
 
+  v0.08 - Released to CPAN 16 Jan 2002
+
+    - A three-byte change (initialising a variable) which makes the test
+    suite pass... sorry about that guys!
+
   v0.07 - Released to CPAN 11 Jan 2002
 
     - Added some generic methods to Syndication::NewsML::Node (and therefore

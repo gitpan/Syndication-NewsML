@@ -24,11 +24,15 @@ Syndication::NewsML -- a NewsML library for Perl
     or http://www.newsml.org/
 
 LATEST VERSION AND WHAT'S NEW
-    The latest version is 0.07, released 11 January 2002.
+    The latest version is 0.08, released 16 January 2002.
 
     Download: http://www.cpan.org/authors/id/B/BQ/BQUINN/
 
   What's New:
+
+  v0.08 - Released to CPAN 16 Jan 2002
+
+        - one simple bugfix to make the test suite pass...
 
   v0.07 - Released to CPAN 11 Jan 2002
 
@@ -147,7 +151,7 @@ AUTHOR AND COPYRIGHT
     This module is free software. It may be used, redistributed and/or
     modified under the same terms as Perl itself.
 
-    $Id: README.pod,v 0.7 2002/01/11 03:29:07 brendan Exp $
+    $Id: README.pod,v 0.8 2002/01/16 04:37:56 brendan Exp $
 
     ** This file was automatically generated from **
     ** doc/README.pod. To edit it, see there.    **

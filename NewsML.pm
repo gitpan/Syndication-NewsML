@@ -1,8 +1,8 @@
-# $Id: NewsML.pm,v 0.7 2002/01/11 03:20:15 brendan Exp $
+# $Id: NewsML.pm,v 0.8 2002/01/16 04:35:29 brendan Exp $
 # Syndication::NewsML.pm
 
-$VERSION     = sprintf("%d.%02d", q$Revision: 0.7 $ =~ /(\d+)\.(\d+)/);
-$VERSION_DATE= sprintf("%s", q$Date: 2002/01/11 03:20:15 $ =~ m# (.*) $# );
+$VERSION     = sprintf("%d.%02d", q$Revision: 0.8 $ =~ /(\d+)\.(\d+)/);
+$VERSION_DATE= sprintf("%s", q$Date: 2002/01/16 04:35:29 $ =~ m# (.*) $# );
 
 $DEBUG = 1;
 
@@ -37,7 +37,7 @@ Syndication::NewsML -- Parser for NewsML documents
 
 =head1 VERSION
 
-Version $Revision: 0.7 $, released $Date: 2002/01/11 03:20:15 $
+Version $Revision: 0.8 $, released $Date: 2002/01/16 04:35:29 $
 
 =head1 SYNOPSIS
 
@@ -324,7 +324,7 @@ sub getAllText {
 
 sub getTextRecursive {
     my ($node, $stripwhitespace) = @_;
-    my $textstring;
+    my $textstring = "";
     for my $child ($node->getChildNodes()) {
         if ( $child->getNodeType == XML::DOM::ELEMENT_NODE ) {
             $textstring .= getTextRecursive($child, $stripwhitespace);
