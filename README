@@ -1,0 +1,148 @@
+Syndication::NewsML -- a NewsML library for Perl
+    NewsML is a standard format for the markup of multimedia news content,
+    ratified by the International Press Telecommunications Council
+    (http://www.iptc.org). According to the newsml.org website NewsML is "An
+    XML-based standard to represent and manage news throughout its
+    lifecycle, including production, interchange, and consumer use."
+
+    NewsML differs from simpler standards such as RSS in that RSS sends
+    links to stories, where NewsML can be used to send links or the story
+    itself, plus any associated information such as images, video or audio
+    files, PDF documents, or any other type of data.
+
+    NewsML also offers much more metadata information than RSS, including
+    links between associated content; the ability to revoke, update or
+    modify previously sent stories; support for sending the same story in
+    multiple languages and/or formats; and a method for user-defined
+    metadata known as Topic Sets.
+
+    Syndication::NewsML is an object-oriented Perl interface to NewsML
+    documents, allowing you to manage (and one day create) NewsML documents
+    without any specialised NewsML or XML knowledge.
+
+    You can find out more about NewsML at http://www.iptc.org/site/NewsML/
+    or http://www.newsml.org/
+
+LATEST VERSION AND WHAT'S NEW
+    The latest version is 0.04, released 26 September 2001.
+
+    Download: http://www.cpan.org/authors/id/B/BQ/BQUINN/
+
+  What's New in 0.04:
+
+    *   Some TopicSet support
+
+        TopicSet support includes the routines getElementByEuid and
+        getElementByDuid, which are required to find internal references to
+        TopicSets for a given element. Also includes findReference,
+        resolveTopicSet and resolveTopicSetDescription methods, used to
+        return the related topic set for further processing. See
+        t/3_complex.t for a simple usage example.
+
+        Better date handling
+
+        All date objects now have a method getDatePerl() which converts a
+        ISO8601-style date (the NewsML standard) to a Perl timestamp in UTC,
+        for use with localtime() etc.
+
+        Name change
+
+        The module is now called Syndciation::NewsML rather than
+        News::NewsML.
+
+    See the Changes file for previous releases.
+
+INSTALLING Syndication::NewsML
+    The lazy way to install Syndication::NewsML:
+
+       $ perl -MCPAN -e shell
+       cpan> install Syndication::NewsML
+
+    Or the normal way:
+
+    Retrieve the latest copy from CPAN:
+    http://www.cpan.org/authors/id/B/BQ/BQUINN/
+
+       $ perl Makefile.PL # Creates the Makefile
+       $ make             # Runs the makefile
+       $ make test        # Optional (See Interopability below)
+       $ make install     # Installs Syndication::NewsML into  your Perl library location
+
+    With this method you will first have to install the pre-requisite module
+    XML::DOM. See the what are the prerequisites? entry elsewhere in this
+    document.
+
+  What Are The Prerequisites?
+
+    *   XML::DOM (Have not tested lower than v1.27)
+
+    *   Perl5 (Have not tested lower than v5.6)
+
+    To get the latest versions of the prerequisite module you can simply
+    type this at the command prompt:
+
+       $ perl -MCPAN -e shell
+       cpan> install XML::DOM
+
+    or if you just 'install Syndication::NewsML' the CPAN module should
+    automagically install all of the prerequisites for you.
+
+  What Systems Does It Work With?
+
+    Syndication::NewsML should work on any machine that supports XML::DOM,
+    and any filesystem including Windows, although I haven't tested it on
+    Windows yet. It's still early days, so expect some bugs.
+
+WHERE ARE THE MANUALS?
+    Once you've installed, you can type:
+
+       $ perldoc Syndication::NewsML
+
+GETTING HELP
+    The best place to ask questions now would be the NewsML mailing list at
+    http://groups.yahoo.com/group/newsml/, or ask me directly at
+    brendan\@clueful.com.au. If there is enough demand we may start up a
+    specialised list.
+
+    General Perl/XML questions should be asked on the Perl-XML mailing list,
+    which you can find at
+    http://aspn.activestate.com/ASPN/Mail/Browse/Threaded/perl-xml
+
+THE TEST SUITE & INTEROPERABILITY
+    The standard `make test' test suite checks most elements in a small
+    range of test NewsML documents obtained from the Net. You can find the
+    test documents in the `t/test_data/' directory.
+
+    I haven't written complete unit tests yet (after all there are 127
+    classes), so some methods remain untested. However the test documents
+    include a fairly standard range of elements, so you should be able to
+    get somewhere with the methods that work so far.
+
+BUGS and TODO
+    There are probably bugs all over the place -- this is still an early
+    version.
+
+    At the moment, `Syndication::NewsML' only reads NewsML files -- in the
+    future it should be able to modify and write them as well.
+
+    See TODO for what I'm thinking of building and what would be nice to have.
+
+AUTHOR AND COPYRIGHT
+    This module is Copyright (C) 2001 by
+
+            Brendan Quinn
+            Clueful Consulting Pty Ltd
+            GPO Box 2747EE
+            Melbourne 3001
+            Victoria, AUSTRALIA
+
+    All rights reserved.
+
+    This module is free software. It may be used, redistributed and/or
+    modified under the same terms as Perl itself.
+
+    $Id: README.pod,v 0.4 2001/09/26 01:27:34 brendan Exp $
+
+    ** This file was automatically generated from **
+    ** doc/Changes.pod. To edit it, see there.    **
+

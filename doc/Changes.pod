@@ -1,0 +1,67 @@
+$Id: Changes.pod,v 0.2 2001/09/26 01:19:26 brendan Exp $
+=for html
+<div id="content">
+<H1>
+Revision history for Syndication::NewsML
+</H1>
+</div>
+<div id="content">
+
+=begin text
+
+Revision history for Syndication::NewsML
+
+=end text
+
+=head2 v0.04 - Released to CPAN, 26 Sep 2001
+
+- Added resolveTopicSet, resolveTopicSetDescription to FormalNameNode
+ These routines allow the user to, given a Status node or something else with a
+ FormalName/Vocabulary pair, automatically look up a related TopicSet and get its
+ information. Note that this only works for locally referenced TopicSets (ie in
+ the same document referred by a Duid).  The annotated DTD specifies an algorithm
+ to use when the TopicSet can't be found locally -- I haven't implemented it yet.
+
+- Added References package including findReference method. Not tested for external
+ references yet.
+
+- Added getElementByEuid and getElementByDuid methods.  These methods can be used
+ on any tag that inherits IdNode -- ie nearly all of them.
+
+ Unfortunately the above methods only return a DOM element, not a NewsMLish
+ object. Perhaps I can use the tag name to construct them?
+
+- Added DOMUtils class with two methods to begin with:
+	findElementByAttribute(node, attr, value):
+		starting at "node", walk the tree and return the node that
+		has attribute "attr" with value "value".
+	getRootNode(node)
+		follow the path up from "node" and return a reference to the <NewsML> node
+		at the top of the tree.
+
+- Added getDatePerl method to date elements: converts ISO8601 date/time format
+ into internal Perl date/time format. Always returns date/time in UTC (it's easy
+ to then use Perl localtime() to get a representation in another timezone).
+ (Note: it may be useful to include a getOriginalTimeZone() or something as we're
+ destroying a bit of information here: namely the timezone under which the story
+ was filed / sent)
+ Elements that can use this are: DateAndTime, FirstCreated, ThisRevisionCreated, DateId
+
+- Updated examples/NewsMLParser to use getNewsItemList -- forgot to fix in 0.03
+
+- Changed all references of News::NewsML to Syndication::NewsML
+
+- Added getTagName method to all Nodes
+
+- Added getPath method to all Nodes
+
+=head2 v0.03, released 16 Sep 2001
+
+- Released to newsml@yahoogroups.com mailing list only.
+
+=for text
+** This file was automatically generated from **
+** doc/Changes.pod. To edit it, see there.    **
+
+=for html
+</div>
