@@ -1,4 +1,4 @@
-$Id: Changes.pod,v 0.3 2001/10/11 12:22:50 brendan Exp $
+$Id: Changes.pod,v 0.5 2002/01/11 03:19:44 brendan Exp $
 =for html
 <div id="content">
 <H1>
@@ -12,6 +12,28 @@ Revision history for Syndication::NewsML
 Revision history for Syndication::NewsML
 
 =end text
+
+=head2 v0.07 - Released to CPAN 11 Jan 2002
+
+- Added some generic methods to Syndication::NewsML::Node (and therefore all
+ object classes):
+  + getXML -- return the current tag and all its children as an XML tree
+  + getContent -- same as above, but ignores the current container element
+  (which means the resulting string may not be well-formed XML)
+  + getText updated to get text of all children (bug fix)
+  + getAllText -- return text in all child elements with no sanity checking,
+  so you can even call this on the NewsML root element to retrieve all text
+  in a document
+
+=head2 v0.06 - 1 Nov 2001 (unreleased)
+
+- Enhanced examples/NewsMLParser.pl: now recurses through all NewsComponents.
+ It's almost useful!
+
+- Made auto routines handle undefined elements/attributes better: now returns
+ undef rather than croaks. Calling a method of an undef class still dies,
+ though: that's Perl, there's nothing I can do about it -- so test your return
+ codes.
 
 =head2 v0.05 - Released to CPAN 11 Oct 2001
 

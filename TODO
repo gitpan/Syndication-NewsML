@@ -1,5 +1,7 @@
 TODO
 
+    * Store catalogs for future use: eg <Role> tag should look up
+    DefaultVocabularyFor "Role"...???
     * Allow creation/modification of NewsML documents as well as just
     reading them
     * A Syndication::NewsML::Simple type module that takes the pain out of
@@ -17,6 +19,7 @@ TODO
     * The rest of the TODO list ;-)
   Would be nice
 
+    *
     ** This file was automatically generated from **
     ** doc/TODO.pod. To edit it, see there.    **
 

@@ -1,10 +1,10 @@
-# $Id: NewsML.pm,v 0.5 2001/10/11 12:19:19 brendan Exp $
+# $Id: NewsML.pm,v 0.7 2002/01/11 03:20:15 brendan Exp $
 # Syndication::NewsML.pm
 
-$VERSION     = sprintf("%d.%02d", q$Revision: 0.5 $ =~ /(\d+)\.(\d+)/);
-$VERSION_DATE= sprintf("%s", q$Date: 2001/10/11 12:19:19 $ =~ m# (.*) $# );
+$VERSION     = sprintf("%d.%02d", q$Revision: 0.7 $ =~ /(\d+)\.(\d+)/);
+$VERSION_DATE= sprintf("%s", q$Date: 2002/01/11 03:20:15 $ =~ m# (.*) $# );
 
-$DEBUG = 0;
+$DEBUG = 1;
 
 #
 # Syndication::NewsML -- initial parser. Maybe this should be Syndication::NewsML::Parser or something?
@@ -37,7 +37,7 @@ Syndication::NewsML -- Parser for NewsML documents
 
 =head1 VERSION
 
-Version $Revision: 0.5 $, released $Date: 2001/10/11 12:19:19 $
+Version $Revision: 0.7 $, released $Date: 2002/01/11 03:20:15 $
 
 =head1 SYNOPSIS
 
@@ -186,7 +186,6 @@ and/or modified under the same terms as Perl itself.
 #
 package Syndication::NewsML::DOMUtils;
 use Carp;
-$DEBUG = 0;
 
 # walk the tree of descendents of $node to look for an attribute $attr with value $value.
 # returns the matching node, or undef.
@@ -224,7 +223,6 @@ sub getRootNode {
 # (any ideas for a better name?)
 package Syndication::NewsML::References;
 use Carp;
-$DEBUG = 0;
 
 # find reference (based on NewsML Toolkit Java version)
 # get referenced data from within this document or possibly an external URL.
@@ -257,7 +255,6 @@ sub findReference {
 package Syndication::NewsML::Node;
 use Carp;
 @ISA = qw( XML::DOM::Node );
-$DEBUG = 0;
 
 sub new {
 	my ($class, $node) = @_;
@@ -290,12 +287,58 @@ sub new {
 
 sub _init { } # undef init, subclasses may want to use it
 
+# get the contents of an element as as XML string (wrapper around XML::DOM::Node::toString)
+# this *includes* the container tag of the current element.
+sub getXML {
+    my ($self) = @_;
+    $self->{xml} = $self->{node}->toString;
+}
+
+# getChildXML is the same as the above but doesn't include the container tag.
+sub getChildXML {
+    my ($self) = @_;
+	my $xmlstring = "";
+    for my $child ($self->{node}->getChildNodes()) {
+		$xmlstring .= $child->toString();
+    }
+	$self->{xml} = $xmlstring;
+}
+
 # get the text of the element, if any
+# now includes get text of all children, including elements, recursively!
 sub getText {
-	my ($self) = @_;
-	croak "Can't use getText on this element" unless $self->{_hasText};
-	# return blank string if node doesn't exist (DOM's way of saying it's empty)
-	$self->{text} = ($self->{node}->getFirstChild) ? $self->{node}->getFirstChild->getNodeValue : "";
+    my ($self, $stripwhitespace) = @_;
+    croak "Can't use getText on this element" unless $self->{_hasText};
+    $self->{text} = "";
+    $self->{text} = getTextRecursive($self->{node}, $stripwhitespace);
+}
+
+# special "cheat" method to get ALL text in ALL child elements, ignoring any markup tags.
+# can use on any element, anywhere (if there's no text, it will just return an empty string
+# or all whitespace)
+sub getAllText {
+    my ($self, $stripwhitespace) = @_;
+    $self->{text} = "";
+    $self->{text} = getTextRecursive($self->{node}, $stripwhitespace);
+}
+
+sub getTextRecursive {
+    my ($node, $stripwhitespace) = @_;
+    my $textstring;
+    for my $child ($node->getChildNodes()) {
+        if ( $child->getNodeType == XML::DOM::ELEMENT_NODE ) {
+            $textstring .= getTextRecursive($child, $stripwhitespace);
+        } else {
+            my $tmpstring = $child->getData();
+            if ($stripwhitespace && ($stripwhitespace eq "strip")) {
+                $tmpstring =~ s/^\s+/ /; #replace with single space -- is this ok?
+                $tmpstring =~ s/\s+$/ /; #replace with single space -- is this ok?
+            }
+            $textstring .= $tmpstring;
+        }
+    }
+    $textstring =~ s/\s+/ /g if $stripwhitespace; #replace with single space -- is this ok?
+    return $textstring;
 }
 
 # get the tag name of this element
@@ -353,6 +396,10 @@ sub AUTOLOAD {
 		if (!$self->{_multiElements}->{$elem}) {
 			croak "No such method: $AUTOLOAD";
 		}
+
+		# return undef if self->node doesn't exist
+		return undef unless defined($self->{node});
+
 		my $list = $self->{node}->getElementsByTagName($elem, 0);
 		if (!$list && $self->{_multiElements}->{$elem} eq ONEORMORE) {
 			croak "Error: required element $elem is missing";
@@ -362,19 +409,27 @@ sub AUTOLOAD {
 		my @elementObjects;
 		my $elementObject;
 		for (my $i = 0; $i < $self->{$elem."Count"}; $i++) {
-			$elementObject = "Syndication::NewsML::$elem"->new($list->item($i));
+			$elementObject = "Syndication::NewsML::$elem"->new($list->item($i))
+				if defined($list->item($i)); # if item is undef, push an undef to the array
 			push(@elementObjects, $elementObject);
 		}
 		$self->{$elem} = \@elementObjects;
 		return $self->{$elem};
 	} elsif ($self->{_singleElements}->{$call}) {
+		# return undef if self->node doesn't exist
+		return undef unless defined($self->{node});
 
 		# handle getXXX method for single-element tags
 		my $element = $self->{node}->getElementsByTagName($call, 0);
-		if (!$element && $self->{_singleElements}->{$call} eq REQUIRED) {
-			croak "Error: required element $call is missing";
+		if (!$element) {
+			if ($self->{_singleElements}->{$call} eq REQUIRED) {
+				croak "Error: required element $call is missing";
+			} else {
+				return undef;
+			}
 		} 
-		$self->{$call} = "Syndication::NewsML::$call"->new($element->item(0));
+		$self->{$call} = "Syndication::NewsML::$call"->new($element->item(0))
+			if defined($element->item(0));
 		return $self->{$call};
 	} elsif ($self->{_attributes}->{$call}) {
 		# return undef if self->node doesn't exist

@@ -15,7 +15,7 @@ MAIN:
 
 	print "date and time is ".$env->getDateAndTime->getText."\n";
 
-	print "priority is ".$env->getPriority->getFormalName."\n";
+	print "priority is ".$env->getPriority->getFormalName."\n" if $env->getPriority;
 
 	print "news item count is ".$newsml->getNewsItemCount."\n";
 
@@ -53,19 +53,13 @@ MAIN:
 		print " This revision created: ".$management->getThisRevisionCreated->getText."\n";
 		print " Status: ".$management->getStatus->getFormalName."\n";
 		# should deal with types of status (embargoed etc)
-		print " Urgency: ".$management->getUrgency->getFormalName."\n";
+		print " Urgency: ".$management->getUrgency->getFormalName."\n" if $management->getUrgency;
 
 		if ($itemtype eq "NewsComponent") {
 			my $comp = $item->getNewsComponent;
 
 			# parse a news component (the most common type of NewsItem)
-			print "News Component:\n";
-			print " Equivalents list: ".$comp->getEquivalentsList."\n";
-			# if yes then should follow "basis for choice"
-			# here...
-			print " Provider: ".$comp->getProvider."\n";
-			print " Creator: ".$comp->getCreator."\n";
-			print " Copyright holder: ".$comp->getCopyrightHolder."\n";
+			&parseNewsComponent($comp, 0);
 		} elsif ($itemtype eq "Update") {
 			my $update = $item->getUpdate;
 			print "got update\n";
@@ -77,5 +71,37 @@ MAIN:
 		} else {
 			print "no NewsComponent, Update or TopicSet -- strange, but legal\n";
 		}
+	}
+}
+
+sub parseNewsComponent {
+	my ($newscomp, $indent) = @_;
+	# parse a news component (the most common type of NewsItem)
+	print " " x $indent . "News Component:\n";
+	print " " x $indent . " Formal Name: ".$newscomp->getRole->getFormalName."\n" if $newscomp->getRole;
+	my $equiv = $newscomp->getEquivalentsList;
+	print " " x $indent . " Equivalents list: ".$equiv;
+	if ($equiv eq "yes") {
+		my $basis = $newscomp->getBasisForChoiceList->[0]->getText;
+		print " (basis for choice: ".$basis.")";
+	}
+	print "\n";
+	if ($newscomp->getAdministrativeMetadata) {
+		print " " x $indent . " Provider: ".$newscomp->getProvider->getDescriptionList->[0]->getText."\n";
+		print " " x $indent . " Creator: ".$newscomp->getCreator->getDescriptionList->[0]->getText."\n";
+	}
+	if ($newscomp->getRightsMetadata) {
+		print " " x $indent . " Copyright holder: ".$newscomp->getCopyrightHolder."\n";
+	}
+	# arbitrary metadata
+	if ($newscomp->getMetadataList->[0]) {
+		my $meta = $newscomp->getMetadataList->[0];
+		print " " x $indent . " Metadata: ".$meta->getMetadataType->getFormalName.": ";
+		print $meta->getPropertyList->[0]->getFormalName." = ".$meta->getPropertyList->[0]->getValue."\n";
+	}
+	# look for child news components
+	my $childnewscomps = $newscomp->getNewsComponentList;
+	foreach my $childnewscomp (@$childnewscomps) {
+		&parseNewsComponent($childnewscomp, $indent + 2);
 	}
 }
